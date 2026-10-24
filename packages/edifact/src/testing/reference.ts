@@ -102,6 +102,15 @@ export function referenceTokenize(bytes: Uint8Array): ReferenceResult {
     if (after !== separators.element && after !== separators.terminator) {
       return fail("INVALID_SEGMENT_TAG", pos + 3, segment, null);
     }
+    if (segment === 1 && tag === "UNB" && !separators.declared) {
+      // Without a UNA string, a UNB that announces syntax version 4 brings the asterisk as
+      // repetition separator: `UNB+`, an identifier of up to 32 bytes with no service character
+      // in it, `:4`, and then the end of the component.
+      const head = Buffer.from(bytes.subarray(pos, pos + 39)).toString("latin1");
+      if (/^UNB\+[^+:?']{0,32}:4[+:']/.test(head)) {
+        separators = { ...DEFAULT_SEPARATORS, repetition: 0x2a };
+      }
+    }
     push(TokenKind.SegmentTag, pos, pos + 3);
     pos += 3;
 

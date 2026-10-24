@@ -28,6 +28,46 @@ export const DEFAULT_SEPARATORS: Separators = Object.freeze({
   declared: false,
 });
 
+/**
+ * `UNA:+.?*'`: what syntax version 4 assumes when an interchange has no UNA string. It is the
+ * default characters with the asterisk as repetition separator (ISO 9735-1:2002, which
+ * introduced the repetition separator).
+ */
+export const SYNTAX_4_SEPARATORS: Separators = Object.freeze({
+  ...DEFAULT_SEPARATORS,
+  repetition: 0x2a,
+});
+
+const MAX_IDENTIFIER = 32;
+
+/**
+ * Whether the UNB segment whose tag starts at `tag` announces syntax version 4, for an
+ * interchange that has no UNA string: `UNB+` an identifier, the component separator, then `4` as
+ * a whole component. Read with the default service characters, since nothing else applies yet.
+ * The tokenizer asks once per interchange, at its first segment, so that the asterisk is the
+ * repetition separator from the very first token.
+ */
+export function announcesSyntax4(bytes: Uint8Array, tag: number): boolean {
+  const { element, component, release, terminator } = DEFAULT_SEPARATORS;
+  let i = tag + 3;
+  if (bytes[i++] !== element) {
+    return false;
+  }
+  const limit = Math.min(bytes.length, i + MAX_IDENTIFIER);
+  while (i < limit && bytes[i] !== component) {
+    const byte = bytes[i] as number;
+    if (byte === element || byte === release || byte === terminator) {
+      return false;
+    }
+    i++;
+  }
+  if (bytes[i] !== component || bytes[i + 1] !== 0x34) {
+    return false;
+  }
+  const after = bytes[i + 2];
+  return after === element || after === component || after === terminator;
+}
+
 /** The default characters, when a UNA string says so: the one set that is shared, not rebuilt. */
 export const DECLARED_DEFAULT_SEPARATORS: Separators = Object.freeze({
   ...DEFAULT_SEPARATORS,

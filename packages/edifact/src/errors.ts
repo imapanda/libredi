@@ -93,3 +93,44 @@ export class ParseError extends Error implements TokenizeErrorPosition {
     this.tag = position.tag;
   }
 }
+
+/** Codes of the errors of the serializer. */
+export const SerializeErrorCode = {
+  /** A segment tag is not three capital letters or digits, or is `UNA`, which has its own option. */
+  InvalidTag: "INVALID_TAG",
+  /** The service characters could not be read back by a tokenizer, or cannot be left out of a UNA string. */
+  InvalidSeparators: "INVALID_SEPARATORS",
+  /** The line break is made of something other than CR and LF. */
+  InvalidLineBreak: "INVALID_LINE_BREAK",
+  /** An element is repeated and the service characters have no repetition separator (syntax version 3). */
+  RepetitionNotAllowed: "REPETITION_NOT_ALLOWED",
+  /** A value has a character that the character set cannot hold or does not allow. */
+  InvalidCharacter: "INVALID_CHARACTER",
+  /** The output would be larger than `maxBytes`. */
+  OutputTooLarge: "OUTPUT_TOO_LARGE",
+} as const;
+
+export type SerializeErrorCode = (typeof SerializeErrorCode)[keyof typeof SerializeErrorCode];
+
+/**
+ * Why the serializer stopped. The position is that of the data it was given, in the terms of the
+ * tree: the number of the segment in the interchange (the first segment is 1, as UNB is in a
+ * parsed tree), its tag, and its element and component counted from 1; `element` and `component`
+ * are null when the problem is not at that level.
+ */
+export class SerializeError extends Error {
+  readonly code: SerializeErrorCode;
+  readonly position: {
+    readonly segment: number;
+    readonly tag: string | null;
+    readonly element: number | null;
+    readonly component: number | null;
+  };
+
+  constructor(code: SerializeErrorCode, detail: string, position: SerializeError["position"]) {
+    super(detail);
+    this.name = "SerializeError";
+    this.code = code;
+    this.position = position;
+  }
+}

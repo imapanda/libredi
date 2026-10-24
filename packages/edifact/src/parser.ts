@@ -166,6 +166,8 @@ export function parseMessages(bytes: Uint8Array, options: ParseOptions = {}): Me
 }
 
 export interface ParseResult {
+  /** The input, kept: everything between and around the interchanges (line breaks, a byte order mark) is in it. */
+  readonly source: Uint8Array;
   /** Normally one; a file may hold several interchanges one after the other. */
   readonly interchanges: Interchange[];
   readonly issues: readonly ParseIssue[];
@@ -268,7 +270,7 @@ export function parseInterchanges(bytes: Uint8Array, options: ParseOptions = {})
     }
   }
   closeGroup();
-  return { interchanges, issues: splitter.issues, issueCount: splitter.issueCount };
+  return { source: bytes, interchanges, issues: splitter.issues, issueCount: splitter.issueCount };
 }
 
 /** An interchange spans from its first byte to its last. */

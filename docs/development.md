@@ -50,7 +50,7 @@ access; only `connectors` can reach partners. `scripts/smoke-compose.sh` checks 
 | `services/connectors` | Go service, with its own `go.mod` and `Dockerfile`. |
 | `packages/service-kit` | Shared runtime of the TypeScript services: `/healthz`, port handling, graceful shutdown. |
 | `packages/contracts` | Tests that check that the files in `contracts/` are valid, and the TypeScript types generated from them (`@libredi/contracts/canonical/v1`, `/api`, `/jobs`). Each service tests its own responses against the contracts. |
-| `packages/edifact` | The UN/EDIFACT engine. Today: the tokenizer (bytes in, flat tokens out), the character sets UNOA, UNOB, UNOC and UNOW, the splitter that finds the messages of a file in constant memory, and the tree of messages with positions and a memory budget; tested against `samples/edifact`, with a benchmark. See its [README](../packages/edifact/README.md). |
+| `packages/edifact` | The UN/EDIFACT engine. Today: the tokenizer (bytes in, flat tokens out), the character sets UNOA, UNOB, UNOC and UNOW, the splitter that finds the messages of a file in constant memory, the tree of messages with positions and a memory budget, and the serializer (a parsed tree byte for byte, or built data with the service characters and character set it is given), with syntax version 4 (the repetition separator); tested against `samples/edifact`, with a benchmark. See its [README](../packages/edifact/README.md). |
 | `packages/registry` | The registry generator ([docs](registry-generator.md)): downloads the UN/ECE directories, parses them into the EDIFACT definition registry of `contracts/registry/`, and checks the result. Tests use fictitious files only. |
 | `samples/edifact` | Fictitious EDIFACT interchanges with expected results, for the tokenizer, parser and validator. See its [README](../samples/edifact/README.md). |
 | `contracts/` | OpenAPI (`openapi/`), job JSON Schemas (`jobs/`), canonical documents (`canonical/`), the mapping format (`mapping/`) and the EDIFACT registry schema (`registry/`), written before the code. See its [README](../contracts/README.md). |
@@ -70,7 +70,7 @@ with the milestones of the [roadmap](roadmap.md).
 | `pnpm typecheck` | `tsc --noEmit` in every package. |
 | `pnpm test` | Vitest (with fast-check for property tests) in every package. |
 | `pnpm build` | Bundle every service into `dist/main.js` with esbuild. |
-| `pnpm --filter @libredi/edifact bench` | Benchmark the EDIFACT tokenizer on a generated 10 MB interchange: throughput and memory. Never part of `verify`. |
+| `pnpm --filter @libredi/edifact bench` | Benchmark the EDIFACT tokenizer, parser and serializer on a generated 10 MB interchange: throughput and memory. Never part of `verify`. |
 | `pnpm verify` | `check`, `typecheck` and `test`. Run it before every push. |
 | `pnpm --filter @libredi/contracts generate` | Regenerate the TypeScript types after changing a contract in `contracts/`. The tests fail when they are out of date. |
 | `scripts/generate-go.sh` | Regenerate the Go code of `services/connectors/internal/generated` from the contracts. The Go job of the CI fails when it is out of date. |

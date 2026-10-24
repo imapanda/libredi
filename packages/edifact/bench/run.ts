@@ -13,8 +13,12 @@
 import { cpus } from "node:os";
 import { performance } from "node:perf_hooks";
 import {
+  type InterchangeData,
+  interchangeData,
   parseInterchanges,
   parseMessages,
+  serialize,
+  serializeData,
   splitMessages,
   Tokenizer,
   TokenKind,
@@ -164,6 +168,46 @@ function parseAndRead(bytes: Uint8Array): number {
 function parseWhole(bytes: Uint8Array): number {
   const { interchanges } = parseInterchanges(bytes, { maxTreeBytes: 2 ** 31 });
   return interchanges.length + (interchanges[0]?.items.length ?? 0);
+}
+
+/** How many distinct orders the writing scenarios cycle through: enough not to measure one object's cache. */
+const DISTINCT_ORDERS = 256;
+
+/** Some orders of the file, each as data: the input of the build path. */
+function ordersAsData(
+  bytes: Uint8Array,
+  messages: readonly { start: number; end: number }[],
+  values: "text" | "bytes",
+): InterchangeData[] {
+  return messages.slice(0, DISTINCT_ORDERS).map(({ start, end }) => {
+    const [interchange] = parseInterchanges(bytes.subarray(start, end)).interchanges;
+    if (interchange === undefined) {
+      throw new Error("no interchange in an order");
+    }
+    return interchangeData(interchange, { values });
+  });
+}
+
+/** Writes `count` orders from data, cycling through the data. */
+function writeOrders(data: readonly InterchangeData[], count: number): number {
+  let bytes = 0;
+  for (let i = 0; i < count; i++) {
+    bytes += serializeData(data[i % data.length] as InterchangeData).length;
+  }
+  return bytes;
+}
+
+/** The whole path of an edit: parse an order, turn it into data, write it again. */
+function parseEditWrite(
+  bytes: Uint8Array,
+  messages: readonly { start: number; end: number }[],
+): number {
+  let total = 0;
+  for (const { start, end } of messages) {
+    const [interchange] = parseInterchanges(bytes.subarray(start, end)).interchanges;
+    total += serializeData(interchangeData(interchange as NonNullable<typeof interchange>)).length;
+  }
+  return total;
 }
 
 /** One tokenizer per message, as a worker will see them when the file has been split (see `splitMessages`). */
@@ -450,6 +494,45 @@ if (options.wholeTree) {
   );
 }
 
+// Writing. `serialize` copies what was parsed; `serializeData` builds the bytes from data.
+const wholeTree = parseInterchanges(big.bytes, { maxTreeBytes: 2 ** 31 });
+const replayTiming = time(() => serialize(wholeTree).length);
+addThroughput(
+  "serialize, a parsed tree (a copy of its bytes)",
+  bigBytes,
+  replayTiming,
+  "the whole file, line breaks included",
+);
+
+const textData = ordersAsData(big.bytes, big.messages, "text");
+const bytesData = ordersAsData(big.bytes, big.messages, "bytes");
+const orderBytes = writeOrders(textData, textData.length) / textData.length;
+const buildTiming = time(() => writeOrders(textData, big.messages.length));
+const buildOrdersPerSecond = big.messages.length / (buildTiming.medianMs / 1000);
+const buildRate = addThroughput(
+  `serializeData, one ${fixed(orderBytes / 1000, 1)} KB order from text values`,
+  orderBytes * big.messages.length,
+  buildTiming,
+  `${fixed(buildOrdersPerSecond)} orders/s, ${fixed(1e6 / buildOrdersPerSecond, 1)} µs per order`,
+);
+
+const buildBytesTiming = time(() => writeOrders(bytesData, big.messages.length));
+addThroughput(
+  `serializeData, one ${fixed(orderBytes / 1000, 1)} KB order from byte values`,
+  orderBytes * big.messages.length,
+  buildBytesTiming,
+  `${fixed(big.messages.length / (buildBytesTiming.medianMs / 1000))} orders/s`,
+);
+
+const editTiming = time(() => parseEditWrite(big.bytes, big.messages));
+const editOrdersPerSecond = big.messages.length / (editTiming.medianMs / 1000);
+addThroughput(
+  "parse an order, interchangeData, serializeData (the edit path)",
+  bigBytes,
+  editTiming,
+  `${fixed(editOrdersPerSecond)} orders/s, ${fixed(1e6 / editOrdersPerSecond, 1)} µs per order`,
+);
+
 const bigMessageTiming = time(() => perMessage(big.bytes, big.messages));
 const bigMessageRate = big.messages.length / (bigMessageTiming.medianMs / 1000);
 addThroughput(
@@ -550,6 +633,7 @@ if (options.json) {
         parse: parseRate,
         parseAndWalk: walkRate,
         parseAndRead: textRate,
+        serializeData: buildRate,
         objectTree: treeRate,
       },
       ordersPerSecond: {
@@ -558,6 +642,8 @@ if (options.json) {
         split: splitOrdersPerSecond,
         parse: parseOrdersPerSecond,
         parseAndRead: textOrdersPerSecond,
+        serializeData: buildOrdersPerSecond,
+        parseEditWrite: editOrdersPerSecond,
       },
       memoryBytes: {
         parserWorkingBytes: parsing.workingBytes,

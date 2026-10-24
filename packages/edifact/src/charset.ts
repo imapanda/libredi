@@ -241,3 +241,49 @@ export function decodeText(
   }
   return latin1(bytes, start, end);
 }
+
+// --- Encoding ---------------------------------------------------------------------------------
+
+const UTF8_ENCODER = new TextEncoder();
+
+/**
+ * Index of the first character of `text` that `set` cannot hold, or -1: above U+00FF in UNOC,
+ * above U+007F in UNOA and UNOB, a lone surrogate in UNOW. Whether the set also *allows* the
+ * character in data (lowercase letters in UNOA, say) is the job of {@link CharacterChecker}.
+ */
+export function findUnencodable(text: string, set: CharacterSet): number {
+  const limit = set === "UNOC" ? 0xff : set === "UNOW" ? 0x10ffff : 0x7f;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 0xd800 || code > 0xdfff) {
+      if (code > limit) {
+        return i;
+      }
+    } else if (set !== "UNOW") {
+      return i;
+    } else if (
+      code >= 0xdc00 ||
+      !(text.charCodeAt(i + 1) >= 0xdc00 && text.charCodeAt(i + 1) <= 0xdfff)
+    ) {
+      return i; // a low surrogate on its own, or a high one with no low one after it
+    } else {
+      i++;
+    }
+  }
+  return -1;
+}
+
+/**
+ * The bytes of `text` in the set: one byte per character in UNOA, UNOB and UNOC, UTF-8 in UNOW.
+ * The text must hold only characters that {@link findUnencodable} accepts.
+ */
+export function encodeText(text: string, set: CharacterSet): Uint8Array {
+  if (set === "UNOW") {
+    return UTF8_ENCODER.encode(text);
+  }
+  const bytes = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i++) {
+    bytes[i] = text.charCodeAt(i);
+  }
+  return bytes;
+}

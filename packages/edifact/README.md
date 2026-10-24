@@ -2,9 +2,11 @@
 
 The UN/EDIFACT engine of Libredi. Today it holds the **tokenizer** (bytes in, a flat stream of
 tokens out), **character sets** (UNOA, UNOB, UNOC, UNOW), the **splitter**, which finds the
-messages of a file in constant memory, and the **tree**, which reads one message at a time into
-segments, elements and components with their positions, within a memory budget. The serializer
-(issue #40) and the validator (#42) build on them.
+messages of a file in constant memory, the **tree**, which reads one message at a time into
+segments, elements and components with their positions, within a memory budget, and the
+**serializer**, which writes a tree back: byte for byte when it was parsed, or from data that was
+built or edited. **Syntax version 4** (the repetition separator) is read and written throughout.
+The validator (#42) builds on them.
 
 The package is private to the monorepo and exports its TypeScript source, like the other
 packages (see [development](../../docs/development.md#typescript-conventions)). Its interface is
@@ -114,7 +116,7 @@ const { interchanges, issues } = parseInterchanges(bytes); // the whole file, ke
   (UNG to UNE), `Message` (UNH to UNT), `Segment`, `Element`, `Component`. Each has `start` and
   `end`, the bytes it spans in the input. Elements and components come from `segment.elements`,
   `element.components` and `element.repetitions` (syntax 4: one list of components per repetition;
-  one list otherwise).
+  one list otherwise; see [Syntax version 4](#syntax-version-4)).
 - **Positions** are those of the sample corpus, the registry and the validator: the number of the
   segment in the interchange (UNA is 0, UNB is 1), the tag, and the element and component counted
   from 1. A composite counts as one element and an empty element counts; an empty component stands
@@ -123,8 +125,8 @@ const { interchanges, issues } = parseInterchanges(bytes); // the whole file, ke
 - **Lossless.** The input is kept (`interchange.source`) and every node knows its bytes, so
   nothing of the file is lost: values keep their release characters until `text()` or `bytes()`
   asks for them without, and the bytes between two nodes (the line breaks after a terminator, a
-  byte order mark in front of the first segment) are exactly the bytes between their spans. The
-  serializer (issue #40) writes the tree back.
+  byte order mark in front of the first segment) are exactly the bytes between their spans.
+  [`serialize`](#write) writes the tree back.
 - **Nodes are views** on compact typed arrays, made when they are asked for. `segment.elements`
   builds its list on each call: keep it if you read it often. The arrays of a message of a few KB
   take about four times its size, against thirty and more for an object tree.
@@ -174,6 +176,125 @@ The bound is on what the parser holds, not on the input, which the caller has al
 arrays of dropped messages when it decides to. The benchmark shows both (live set and free-running
 heap).
 
+## Write
+
+Two ways, for two jobs.
+
+```ts
+import {
+  interchangeData,
+  parseInterchanges,
+  serialize,
+  serializeData,
+} from "@libredi/edifact";
+
+// A tree that was parsed is written as it was read.
+const result = parseInterchanges(bytes);
+serialize(result); // the whole file, byte for byte (always a copy)
+serialize(result.interchanges[0]); // one interchange, from its first byte to its last
+serialize(message); // one message (UNH to UNT), or an envelope from parseMessages(...).items()
+
+// A tree that is built or edited is described as data and written with the service characters
+// and the character set it is given.
+const data = interchangeData(result.interchanges[0]); // a parsed tree as plain data, to edit
+serializeData({
+  segments: [
+    { tag: "UNB", elements: [["UNOC", "4"], ["SENDER", "14"], ["RECEIVER", "14"]] },
+    { tag: "FTX", elements: ["AAI", [], [], { repetitions: [["ONE"], ["TWO", "2"]] }] },
+    { tag: "UNZ", elements: ["1", "REF"] },
+  ],
+}); // UNA:+.?*'UNB+UNOC:4+SENDER:14+RECEIVER:14'FTX+AAI+++ONE*TWO:2'UNZ+1+REF'
+```
+
+- **`serialize(tree)`** takes a `ParseResult`, an `Interchange`, a `Message` or an `Envelope` and
+  returns the bytes it was read from. A tree that was parsed has not changed, so nothing is
+  rebuilt: the release characters that nobody needed, the line breaks (and how many), a byte
+  order mark, a missing UNA string, all come back as they were. A `ParseResult` also holds what is
+  between and around the interchanges, so a whole file comes back whatever it holds, even nothing
+  but line breaks. It is a copy: the result does not share memory with the input.
+- **`serializeData(data, options)`** writes what the data says. `data.segments` is a list of
+  `{ tag, elements }`; an element is a value (`"220"`), a list of components (`["UNOC", "4"]`,
+  `[]` for an empty element) or `{ repetitions: [[…], […]] }`; a value is a string, which is
+  encoded for the character set, or a `Uint8Array`, which is written as it is. Values are
+  escaped with the release character wherever they hold a service character; nothing else is
+  added, left out or trimmed (a trailing empty element stays). `data.separators`, `characterSet`,
+  `una`, `lineBreak` and `bom` are optional:
+
+  | Field | Default |
+  | --- | --- |
+  | `separators` | what a reader assumes without a UNA string: `:+.? '`, or `:+.?*'` when the UNB announces syntax version 4 as the tokenizer sees it (see below). `declared` is not needed |
+  | `characterSet` | the one the UNB names (first component of its first element), else UNOA |
+  | `una` | true: the UNA string states the service characters. With `false` they must be those a reader assumes, or the file could not be read back |
+  | `lineBreak` | none; CR and LF, written after the UNA string and after every segment |
+  | `bom` | false |
+
+  `options.checkCharacters` (default true) checks every value against the character set, as the
+  parser does, with the service characters allowed; `options.maxBytes` (default 512 MiB) stops the
+  output with `OUTPUT_TOO_LARGE`, before it writes past it. Text that the set cannot hold (the euro
+  sign in UNOC, a lone surrogate in UNOW) is always refused.
+- **`interchangeData(interchange, { values })`** turns a parsed interchange into such data: a
+  copy, with text values and the separators, UNA string, byte order mark and line break of the
+  file (the break after the UNA string, or after the first segment if none follows it). The
+  character set is left out when the UNB names it, so that an edit of S001 is followed.
+  `values: "bytes"` keeps the bytes exactly; text reads a broken UTF-8 sequence of UNOW as U+FFFD.
+  Edit the copy and write it. Written without edits it gives the same bytes when the file escapes
+  only what it must and uses one line break everywhere, which is true of every valid sample; a file
+  that escapes more or mixes line breaks comes back normalised, and `serialize` is the way to keep
+  it as it was.
+
+Both write representation and know nothing of what a segment means or whether the interchange is
+valid. The one rule they apply is the one the service characters decide: an element can only be
+repeated when there is a repetition separator and the UNB announces version 4 (a fragment with no
+UNB may repeat). A `SerializeError` has a `code` and a `position` (the segment, counted from 1 as
+UNB is in a parsed tree, its tag, and the element and component counted from 1; segment 0 for
+a problem with the service characters, the line break or the UNA string):
+
+| Code | When |
+| --- | --- |
+| `INVALID_TAG` | A tag is not three capital letters or digits, or is `UNA` (written for you). |
+| `INVALID_SEPARATORS` | The service characters are not ones a UNA string can state (see `INVALID_UNA`), or `una: false` with characters a reader would not guess. |
+| `INVALID_LINE_BREAK` | The line break holds something other than CR and LF. |
+| `REPETITION_NOT_ALLOWED` | An element has several repetitions and there is no repetition separator, or the UNB announces a version other than 4. |
+| `INVALID_CHARACTER` | A text value has a character the set cannot hold, or a value has a character the set does not allow in data. |
+| `OUTPUT_TOO_LARGE` | The output would be larger than `maxBytes`. |
+
+## Syntax version 4
+
+Syntax version 4 adds the **repetition separator**: an element can occur several times in a row,
+as in `FTX+AAI+++FIRST NOTE*SECOND:2*THIRD'`, and the seventh character of the UNA string says
+which character it is (syntax 3 keeps a space there).
+
+- **Reading.** UNA declares the repetition separator, and the tokenizer uses it. Without a UNA
+  string, a UNB that announces version 4 makes the asterisk the repetition separator, which is
+  what that version assumes (ISO 9735-1:2002). The tokenizer sees it when the interchange starts
+  with `UNB+`, an identifier of at most 32 bytes with no `+`, `?` or `'` in it, `:`, and then `4`
+  as a whole component (followed by `+`, `:` or `'`): `UNB+UNOC:4+…` is, `UNB+UNOC:41+…` and
+  `UNB+UNOC:3:4+…` are not. It is decided once, at the start of the interchange, before its
+  first token, and applies until UNZ: an interchange that has no UNZ, followed by one with a UNB,
+  keeps its characters (the splitter does start a new interchange at that UNB). A UNA string
+  always wins over what UNB says: `UNA:+.? '` with `:4` has no repetition separator, and
+  `UNA:+.?*'` with `:3` has one. A released asterisk (`?*`) is data in both.
+- **In the tree.** An element that uses the separator has several `repetitions`, one list of
+  components each; `element.components` is the first. It counts once in its segment, and the
+  `position.component` of a component is counted within its repetition: the first component of
+  every repetition is component 1. An element with an empty repetition (`A**B`) has an empty list
+  for it. The parser keeps what is written, whatever the version; it counts at most 65,535
+  repetitions in an element.
+- **Writing.** `serializeData` writes the separator the data says, escapes it in values, and
+  refuses a repetition when there is none or when the UNB announces another version
+  (`REPETITION_NOT_ALLOWED`). Whether a reader would see the UNB as version 4 (the rule above) is
+  what decides the default characters, so that `una: false` is only accepted for characters the
+  reader will in fact assume.
+- **`maxOccurs`.** The registry says an element may be repeated `maxOccurs` times and that
+  repetition needs syntax version 4, whatever `maxOccurs` says
+  ([registry](../../contracts/registry/README.md)). Neither the tokenizer nor the parser enforces
+  it: reporting a repetition under syntax 3, or too many repetitions, is validation (#43 to #45).
+  The serializer enforces the first half, because it is the service characters that decide it.
+- **Service segments.** UNB, UNH, UNT, UNZ, UNG and UNE are the same in versions 3 and 4 as far as
+  the engine goes; it reads S001 (identifier and version) from either. The segments that only
+  version 4 has (UGH and UGT, UNO and UNP) are ordinary segments to the engine: they are in the
+  tree where they stand, loose segments between messages, and are not interpreted.
+
 ## Character sets
 
 UNB names the character set in the first component of S001. The splitter reads that component as
@@ -209,7 +330,8 @@ position in the terms of the registry (segment, tag, element, component counted 
 
 ## Rules it follows
 
-- UNA gives the six service characters; without it the defaults `:+.? '` apply. A UNA string
+- UNA gives the six service characters; without it the defaults `:+.? '` apply, with the
+  asterisk as repetition separator for a UNB that announces syntax version 4. A UNA string
   may also start a second interchange in the same file; after UNZ the defaults apply again. A
   batch never mixes two sets of separators: it ends before a new, different UNA and after UNZ,
   and `batch.separators` holds the set for the whole batch. The same UNA string repeated does
@@ -218,8 +340,8 @@ position in the terms of the registry (segment, tag, element, component counted 
   the release character itself.
 - CR, LF and CR LF are skipped between segments, before the first one, after UNA and at the end
   of the file. Inside a segment they are data, which the character set check will judge.
-- The syntax 4 repetition separator exists only when UNA declares one. Without UNA, `*` is
-  plain text (syntax 4 details are issue #41).
+- The repetition separator exists when UNA declares one, or when there is no UNA string and the
+  UNB announces syntax version 4 ([details](#syntax-version-4)). Otherwise `*` is plain text.
 - A file of 2 GiB or more is refused: offsets are signed 32-bit integers, which V8 reads
   faster.
 
@@ -250,6 +372,23 @@ position in the terms of the registry (segment, tag, element, component counted 
   what the tokens say; the same messages come out of `parseMessages` and `parseInterchanges`,
   whatever the batch size; arbitrary bytes parse into a consistent tree or stop with the
   tokenizer's error;
+- every valid sample once more through the serializer: parse then `serialize` is byte-identical
+  (the file, and each interchange), the messages and envelopes put end to end give the segments of
+  the file (without its line breaks), and the tree written as data with `serializeData` gives the
+  same bytes, with text values and with byte values; the five syntax 4 samples also parse to the
+  same tree without their UNA string;
+- the serializer's own examples (escapes with other service characters, empty elements and
+  components, each character set, each error and its position, the output limit, an edited
+  interchange) and fast-check properties: a parsed file comes back byte for byte whatever the
+  service characters, line breaks, byte order mark and number of interchanges; `serializeData`
+  writes exactly the bytes of the independent writer of the tests for any model, including
+  repetitions and interchanges that announce syntax version 4 without a UNA string; the bytes it
+  writes are read back as the same data and written again as the same bytes; and text of each
+  character set, outside ASCII too, comes back as the same text;
+- syntax 4: the asterisk becomes a repetition separator in exactly the cases listed above (versions,
+  identifier length, UNA winning, one decision per interchange, any batch size), and the plain
+  tokenizer agrees on arbitrary interchanges of that kind and on thousands of random starts of UNB
+  around the 32-byte and `:4` boundaries;
 - a second, deliberately plain tokenizer (`src/testing/reference.ts`, one byte at a time, no
   tables, no batches) and a second, plain splitter on top of it (`src/testing/split-reference.ts`)
   that must give the same tokens, separators, errors, messages, interchange facts and issues on
@@ -283,7 +422,11 @@ quiet moment; runs agree within 5 %, but expect other machines to differ):
 | ... and visiting every segment, element and component | 86 MB/s, 10,000 orders/s |
 | ... and reading every value as text | 31 MB/s, 3,600 orders/s, 277 µs per order |
 | `parseInterchanges`, the whole file as one tree | 126 MB/s |
-| One tokenizer per 8.5 KB order | 33,000 orders/s, 30 µs per order |
+| `serialize`, a parsed tree | a copy of its bytes: 39 to 47 GB/s, the speed of memory |
+| `serializeData`, one 8.5 KB order from text values | 7,800 to 8,000 orders/s, **125 to 128 µs per order** (6 % of the 2 ms budget of ADR 10) |
+| ... from byte values | 10,000 to 10,700 orders/s |
+| Parse an order, `interchangeData`, `serializeData` (the edit path) | 1,140 to 1,230 orders/s, 0.8 to 0.9 ms per order (about 42 % of the budget); most of it is making the data from the views |
+| One tokenizer per 8.5 KB order | 31,000 to 34,000 orders/s, 30 to 32 µs per order |
 | One tokenizer per 0.5 KB order | 360,000 orders/s, 2.8 µs per order |
 | Memory of the tokenizer | 36 KiB while scanning, 9 MB or 90 MB of input alike |
 | Memory of `splitMessages` | nothing held but the envelope; 0.5 MiB sampled for 9 MB of input and 3 MiB for 92 MB, all of it garbage of slices not yet collected |
@@ -295,6 +438,16 @@ At 92.5 MB (`-- --size-mb=100`) `parseMessages` runs at 121 MB/s, 14,300 orders/
 order, with the same 40 KiB bound. `parseInterchanges` falls to 39 MB/s there, because it builds
 342 MB of arrays (and needs `maxTreeBytes` raised above its default of 256 MiB): for a file of that
 size, loop over `parseMessages`.
+
+Syntax version 4 without a UNA string costs the tokenizer one test per interchange, made before its
+first token. Against the tokenizer of `main`, three alternating runs each: counting tokens 419 to
+420 MB/s before and 410 to 415 after, reading every token 293 to 294 before and 291 to 293 after,
+`splitMessages` 160 to 163 before and after, `parseMessages` 122 to 127 before and 126 to 128
+after. One scenario moved for no reason I found: "one tokenizer per 8.5 KB order" runs at 285 to
+289 MB/s on `main` and 263 to 267 on this branch inside the benchmark, whereas a stand-alone loop
+of the same work gives 437 and 438 MB/s (six alternating runs each). The cost of the test is a
+few comparisons per tokenizer, so I read that row as a difference in what the engine had
+optimised by the time it got there, not as 2.5 µs of work.
 
 The floor on the same machine, a loop that only looks every byte up in a table, is 2.5 GB/s. The
 flat scanner of the language study reached 737 MB/s on Node 24 but only counted segments; this

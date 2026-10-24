@@ -194,3 +194,38 @@ export const interchangeArbitrary: fc.Arbitrary<InterchangeSpec> = fc
       breaks: breaksArbitrary,
     });
   });
+
+/** UNB announcing syntax version 4: what makes the asterisk the repetition separator without a UNA string. */
+const unbOf = (identifier: string): SegmentSpec => ({
+  tag: "UNB",
+  elements: [[[Uint8Array.from(Buffer.from(identifier, "latin1")), Uint8Array.of(0x34)]]],
+});
+
+/**
+ * Interchanges with no UNA string that announce syntax version 4 in their UNB: the asterisk is
+ * the repetition separator, and elements are repeated with it.
+ */
+export const syntax4WithoutUnaArbitrary: fc.Arbitrary<InterchangeSpec> = fc
+  .record({
+    identifier: fc.stringMatching(/^[A-Z]{1,8}$/),
+    segments: fc.array(
+      fc.record({
+        tag: tagArbitrary,
+        elements: fc.array(
+          fc.array(fc.array(valueArbitrary, { minLength: 1, maxLength: 3 }), {
+            minLength: 1,
+            maxLength: 3,
+          }),
+          { maxLength: 4 },
+        ),
+      }),
+      { minLength: 1, maxLength: 5 },
+    ),
+    breaks: breaksArbitrary,
+  })
+  .map(({ identifier, segments, breaks }) => ({
+    separators: { ...DEFAULT_SEPARATORS, repetition: 0x2a },
+    declareUna: false,
+    segments: [unbOf(identifier), ...segments],
+    breaks,
+  }));

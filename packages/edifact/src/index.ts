@@ -3,6 +3,8 @@ export { decodeText } from "./charset.ts";
 export {
   ParseError,
   ParseErrorCode,
+  SerializeError,
+  SerializeErrorCode,
   TokenizeError,
   TokenizeErrorCode,
   type TokenizeErrorPosition,
@@ -15,7 +17,22 @@ export {
   parseInterchanges,
   parseMessages,
 } from "./parser.ts";
-export { DEFAULT_SEPARATORS, type Separators } from "./separators.ts";
+export {
+  DEFAULT_SEPARATORS,
+  type Separators,
+  SYNTAX_4_SEPARATORS,
+} from "./separators.ts";
+export {
+  type ElementData,
+  type InterchangeData,
+  type InterchangeDataOptions,
+  interchangeData,
+  type SegmentData,
+  type SerializeOptions,
+  serialize,
+  serializeData,
+  type ValueData,
+} from "./serialize.ts";
 export {
   type MessageSlice,
   type SliceStream,

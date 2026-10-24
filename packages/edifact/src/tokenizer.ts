@@ -1,11 +1,13 @@
 import { describeByte, TokenizeError, TokenizeErrorCode } from "./errors.ts";
 import { type LineColumn, LineIndex, scanLocate } from "./line-index.ts";
 import {
+  announcesSyntax4,
   DEFAULT_SEPARATORS,
   matchesServiceString,
   readServiceStringAdvice,
   SERVICE_STRING_LENGTH,
   type Separators,
+  SYNTAX_4_SEPARATORS,
 } from "./separators.ts";
 import { type TokenBatch, TokenKind } from "./tokens.ts";
 
@@ -107,7 +109,9 @@ class Batch implements TokenBatch {
  *
  * What it does, following ISO 9735:
  *
- * - reads the UNA string, or uses the default service characters `:+.? '`;
+ * - reads the UNA string, or uses the default service characters `:+.? '`, plus the asterisk as
+ *   repetition separator when there is no UNA string and the UNB announces syntax version 4
+ *   (`UNB+UNOC:4+...`), which is what that version assumes;
  * - honours the release character: a released byte is data, whatever it is;
  * - skips CR and LF between segments (and before the first one, after UNA, at the end);
  * - treats a UNA string anywhere between segments as the start of a new interchange, and goes
@@ -117,9 +121,8 @@ class Batch implements TokenBatch {
  *   itself is thrown by the loop's next step, so a loop that stops early never sees it.
  *
  * What it leaves to others: reading values as text and checking them against the character set
- * (`charset.ts`), finding messages (`splitMessages`), the meaning of segments and the validation
- * of the envelope and the data (issues #43 to #45), and the syntax 4 repetition separator when
- * there is no UNA (#41).
+ * (`charset.ts`), finding messages (`splitMessages`), and the meaning of segments and the
+ * validation of the envelope and the data (issues #43 to #45).
  *
  * A tokenizer reads its input once and has one live loop at a time: all loops share one batch.
  * Iterating it again carries on where the last loop stopped (after the end, it yields nothing).
@@ -226,6 +229,9 @@ export class Tokenizer implements Iterable<TokenBatch> {
       this.#segment = 0;
     }
     batch.separators = this.#separators;
+    if (this.#segment === 0 && this.#state === AT_SEGMENT_START && !this.#separators.declared) {
+      this.#startOfInterchange(batch);
+    }
 
     const bytes = this.#bytes;
     const length = bytes.length;
@@ -425,6 +431,30 @@ export class Tokenizer implements Iterable<TokenBatch> {
     this.#tagStart = tagStart;
     this.#isUnz = isUnz;
     batch.length = n;
+  }
+
+  /**
+   * The start of an interchange with no UNA string. Syntax version 4 assumes the asterisk as
+   * repetition separator, and the UNB says whether this is version 4: that is decided here, once,
+   * before any token of the interchange, so that no batch mixes two sets of separators. An
+   * interchange ends at UNZ: one that has none, followed by a UNB, keeps its characters.
+   */
+  #startOfInterchange(batch: Batch): void {
+    const bytes = this.#bytes;
+    let at = this.#pos;
+    while (at < bytes.length && (bytes[at] === LF || bytes[at] === CR)) {
+      at++;
+    }
+    if (
+      bytes[at] === 0x55 &&
+      bytes[at + 1] === 0x4e &&
+      bytes[at + 2] === 0x42 &&
+      announcesSyntax4(bytes, at)
+    ) {
+      this.#separators = SYNTAX_4_SEPARATORS;
+      this.#table = tableFor(SYNTAX_4_SEPARATORS);
+      batch.separators = SYNTAX_4_SEPARATORS;
+    }
   }
 
   /** The tag of the segment that starts at `start`, with anything unexpected shown as "?". */

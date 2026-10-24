@@ -11,7 +11,7 @@ import { unescapeValue } from "./unescape.ts";
  * input, `end` excluded) and the input is kept (`Interchange.source`), so nothing of the file is
  * lost: values keep their release characters until they are asked for as text, and the bytes
  * between two nodes (the line breaks after a terminator, a byte order mark in front of the first
- * segment) are exactly the bytes between their spans. The serializer (issue #40) writes it back.
+ * segment) are exactly the bytes between their spans. `serialize` (serialize.ts) writes it back.
  *
  * Nodes are views on compact arrays and are made when they are asked for, so a tree of a
  * million segments costs a few times the size of the file. Ask for `segment.elements` once and
