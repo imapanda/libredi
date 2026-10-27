@@ -13,6 +13,7 @@
 import { cpus } from "node:os";
 import { performance } from "node:perf_hooks";
 import {
+  acknowledge,
   type InterchangeData,
   interchangeData,
   parseInterchanges,
@@ -169,6 +170,21 @@ function parseAndRead(bytes: Uint8Array): number {
 /** The validator: the file and its envelopes, and nothing built beyond what the parser builds. */
 function validateAll(bytes: Uint8Array): number {
   return validate(bytes).issueCount + 1;
+}
+
+/** The validator with the summary of each interchange and message that a CONTRL is written from. */
+function validateWithSummary(bytes: Uint8Array): number {
+  return validate(bytes, { summary: true }).issueCount + 1;
+}
+
+/** The CONTRL for each interchange of a file: the validation with a summary, and the writing. */
+function acknowledgeAll(bytes: Uint8Array): number {
+  const { interchanges } = acknowledge(bytes, { reference: "C1", always: true });
+  let written = 0;
+  for (const one of interchanges) {
+    written += one.contrl?.length ?? 0;
+  }
+  return written + 1;
 }
 
 /** The validator with a registry: structure, and the type, length and codes of every value. */
@@ -489,6 +505,24 @@ const validateRate = addThroughput(
   `${fixed(validateOrdersPerSecond)} orders/s, ${fixed(1e6 / validateOrdersPerSecond, 1)} µs per order`,
 );
 
+const summaryTiming = time(() => validateWithSummary(big.bytes));
+const summaryOrdersPerSecond = big.messages.length / (summaryTiming.medianMs / 1000);
+const summaryRate = addThroughput(
+  "validate, with the summary of each interchange and message",
+  bigBytes,
+  summaryTiming,
+  `${fixed(summaryOrdersPerSecond)} orders/s, ${fixed(1e6 / summaryOrdersPerSecond, 1)} µs per order`,
+);
+
+const acknowledgeTiming = time(() => acknowledgeAll(big.bytes));
+const acknowledgeOrdersPerSecond = big.messages.length / (acknowledgeTiming.medianMs / 1000);
+const acknowledgeRate = addThroughput(
+  "acknowledge, the validation and the CONTRL (one UCM per order)",
+  bigBytes,
+  acknowledgeTiming,
+  `${fixed(acknowledgeOrdersPerSecond)} orders/s, ${fixed(1e6 / acknowledgeOrdersPerSecond, 1)} µs per order`,
+);
+
 const registryTiming = time(() => validateWithRegistry(big.bytes));
 const registryOrdersPerSecond = big.messages.length / (registryTiming.medianMs / 1000);
 const registryRate = addThroughput(
@@ -664,6 +698,8 @@ if (options.json) {
         parseAndWalk: walkRate,
         parseAndRead: textRate,
         validate: validateRate,
+        validateWithSummary: summaryRate,
+        acknowledge: acknowledgeRate,
         validateWithRegistry: registryRate,
         serializeData: buildRate,
         objectTree: treeRate,
@@ -675,6 +711,8 @@ if (options.json) {
         parse: parseOrdersPerSecond,
         parseAndRead: textOrdersPerSecond,
         validate: validateOrdersPerSecond,
+        validateWithSummary: summaryOrdersPerSecond,
+        acknowledge: acknowledgeOrdersPerSecond,
         validateWithRegistry: registryOrdersPerSecond,
         serializeData: buildOrdersPerSecond,
         parseEditWrite: editOrdersPerSecond,

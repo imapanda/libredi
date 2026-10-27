@@ -13,6 +13,7 @@ import type { LineColumn } from "./line-index.ts";
 import { type ParseOptions, parseMessages } from "./parser.ts";
 import { findRegistry, type RegistryView } from "./registry.ts";
 import { StructureChecker } from "./structure.ts";
+import { type InterchangeSummary, Summaries } from "./summary.ts";
 import type { Message, Segment } from "./tree.ts";
 import type { ParseIssue } from "./types.ts";
 
@@ -33,6 +34,11 @@ export interface ValidateOptions {
    * `all` also the open lists, which are only what the directory knows, as warnings, `off` none.
    */
   readonly codeLists?: CodeListCheck;
+  /**
+   * Keep, for each interchange and each message, whether it had errors and the first one, in
+   * `report.interchanges`: what a CONTRL needs. Costs a record per message. Default false.
+   */
+  readonly summary?: boolean;
 }
 
 export interface ValidationReport {
@@ -53,6 +59,8 @@ export interface ValidationReport {
   /** Messages and interchanges that were read before the check ended. */
   readonly messageCount: number;
   readonly interchangeCount: number;
+  /** With `summary: true`, one record per interchange with its messages; empty otherwise. */
+  readonly interchanges: readonly InterchangeSummary[];
 }
 
 const DEFAULT_MAX_ISSUES = 1000;
@@ -66,18 +74,24 @@ const DEFAULT_MAX_ISSUES = 1000;
 class Collector implements IssueSink {
   readonly #max: number;
   readonly #kept: ValidationIssue[] = [];
+  readonly #summaries: Summaries | null;
   count = 0;
   errors = 0;
   warnings = 0;
 
-  constructor(max: number) {
+  constructor(max: number, summaries: Summaries | null = null) {
     this.#max = max;
+    this.#summaries = summaries;
   }
 
-  add(draft: IssueDraft, locate: (offset: number) => LineColumn): void {
+  /** `summarised` is false for an issue that the summary has already counted (see `Summaries.pending`). */
+  add(draft: IssueDraft, locate: (offset: number) => LineColumn, summarised = true): void {
     this.count++;
     if ((draft.severity ?? ISSUE_CATALOGUE[draft.code].severity) === "error") {
       this.errors++;
+      if (summarised) {
+        this.#summaries?.note(draft);
+      }
     } else {
       this.warnings++;
     }
@@ -112,6 +126,7 @@ class Collector implements IssueSink {
         offset: issue.offset,
       },
       () => ({ line: issue.line, column: issue.column }),
+      false,
     );
   }
 
@@ -120,16 +135,15 @@ class Collector implements IssueSink {
     if (!isIssueCode(error.code)) {
       throw error;
     }
-    this.add(
-      {
-        code: error.code,
-        segment: error.segment,
-        tag: error.tag,
-        message: error.detail,
-        offset: error.offset,
-      },
-      () => ({ line: error.line, column: error.column }),
-    );
+    const draft: IssueDraft = {
+      code: error.code,
+      segment: error.segment,
+      tag: error.tag,
+      message: error.detail,
+      offset: error.offset,
+    };
+    this.add(draft, () => ({ line: error.line, column: error.column }), false);
+    this.#summaries?.stop(draft);
   }
 
   /** Issues the splitter counted but did not keep: they are all errors. */
@@ -218,10 +232,14 @@ export function validate(bytes: Uint8Array, options: ValidateOptions = {}): Vali
   if (!Number.isInteger(maxIssues) || maxIssues < 0) {
     throw new RangeError(`maxIssues must be a non-negative integer, not ${maxIssues}`);
   }
-  const collector = new Collector(maxIssues);
+  const summaries = options.summary === true ? new Summaries() : null;
+  const collector = new Collector(maxIssues, summaries);
   const envelope = new EnvelopeChecker(collector);
   const parseOptions: ParseOptions = {
     maxIssues,
+    ...(summaries === null
+      ? {}
+      : { onIssue: (code, position, offset) => summaries.pending(code, position, offset) }),
     ...(options.memoryBudget === undefined ? {} : { memoryBudget: options.memoryBudget }),
   };
   const registries = options.registries ?? [];
@@ -236,6 +254,7 @@ export function validate(bytes: Uint8Array, options: ValidateOptions = {}): Vali
   try {
     for (const item of stream.items()) {
       interchanges.add(item.interchange.index);
+      summaries?.begin(item);
       if (item.kind === "message") {
         messageCount++;
         envelope.message(item);
@@ -254,6 +273,7 @@ export function validate(bytes: Uint8Array, options: ValidateOptions = {}): Vali
     collector.addStop(error);
   }
   envelope.finish(complete);
+  summaries?.finish();
 
   for (const issue of stream.issues) {
     collector.addParseIssue(issue);
@@ -269,5 +289,6 @@ export function validate(bytes: Uint8Array, options: ValidateOptions = {}): Vali
     complete,
     messageCount,
     interchangeCount: interchanges.size,
+    interchanges: summaries?.list ?? [],
   };
 }

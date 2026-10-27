@@ -1,5 +1,33 @@
 export type { CharacterSet } from "./charset.ts";
 export { decodeText } from "./charset.ts";
+export {
+  ACTION,
+  type Acknowledged,
+  type AcknowledgementOutcome,
+  type AcknowledgementStatus,
+  type AcknowledgeOptions,
+  type AcknowledgeResult,
+  acknowledge,
+  CONTRL_ERROR_CODES,
+  type ContrlOptions,
+  type ContrlReading,
+  type Correlation,
+  type CorrelationProblem,
+  type CorrelationResult,
+  contrl,
+  contrlData,
+  correlate,
+  DEFAULT_CONTRL_ERROR_CODE,
+  type ErrorReport,
+  type InterchangeAcknowledgement,
+  type MessageAcknowledgement,
+  type NotAnswered,
+  outcomeOf,
+  readContrl,
+  type SegmentError,
+  type SentInterchange,
+  sentFrom,
+} from "./contrl.ts";
 export type { CodeListCheck } from "./elements.ts";
 export {
   ParseError,
@@ -59,6 +87,7 @@ export {
   type SplitOptions,
   splitMessages,
 } from "./split.ts";
+export type { ErrorNote, InterchangeSummary, MessageSummary } from "./summary.ts";
 export { Tokenizer, type TokenizerOptions } from "./tokenizer.ts";
 export { type TokenBatch, TokenKind } from "./tokens.ts";
 export type {

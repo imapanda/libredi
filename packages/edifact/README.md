@@ -403,6 +403,94 @@ LIBREDI_REGISTRIES=/path/to/d96a.json,/path/to/d01b.json pnpm --filter @libredi/
 The test is skipped without it. The samples have never been checked against the real directories, so
 a sample that fails there is a finding about the sample or about the registry; fix the sample.
 
+## Acknowledge: CONTRL
+
+```ts
+import { acknowledge, correlate, readContrl, sentFrom, validate } from "@libredi/edifact";
+
+// A file came in: validate it and answer each interchange in it.
+const { interchanges, report } = acknowledge(bytes, {
+  reference: (summary) => nextReference(summary), // the UNB reference of each CONTRL
+  validate: { registries }, // optional: structure and data against registries
+});
+for (const { summary, outcome, contrl, notAnswered } of interchanges) {
+  outcome; // "accepted", "partially_rejected" or "rejected"
+  contrl; // the CONTRL as bytes, or null: see notAnswered
+  notAnswered; // null, "not_requested" (UNB 0031 is not 1) or "no_address" (nobody to answer to)
+}
+
+// A CONTRL came in: what does it say, and about which interchange that we sent?
+const [ours] = validate(sentBytes, { summary: true }).interchanges;
+const sent = [sentFrom(ours)].filter((one) => one !== null); // null: no reference or parties
+const { acknowledgements, complete } = readContrl(contrlBytes); // complete: the file was whole
+const { correlations, pending } = correlate(acknowledgements, sent);
+```
+
+**Writing (#49).** `acknowledge(bytes, options)` validates the file with `summary: true` and builds
+one CONTRL per interchange it could read, with `contrl(summary, options)` (or `contrlData`, the
+same as data to change before it is written with `serializeData`). The layout is the one of the
+CONTRL samples of the corpus, and the generated CONTRL is, byte for byte, the sample for the
+interchange it answers (a test for each of the four): `UNB` (sender and recipient swapped, its own
+reference, date and time), `UNH` (`CONTRL:D:3:UN` in syntax 3, `CONTRL:4:2:UN` in syntax 4), `UCI`
+(the reference, sender and recipient of the interchange answered, and the action), one `UCM` for
+each message (reference, identifier, action), `UNT`, `UNZ`.
+
+- **Accepted**: `UCI` action 7 and every `UCM` 7.
+- **Partly rejected**: `UCI` 7; a message with an error gets `UCM` action 4, and the others 7. An
+  error in the UNH or UNT of the message goes in the `UCM`: the error code, the tag of the segment
+  and the position of the element (`element`, or `element:component`). An error in a segment of
+  the body is told as ISO 9735 does: a `UCS` with the position of the segment in the message (UNH
+  is 1) and, when the segment as a whole is at fault, the error code; when a data element is, a
+  `UCS` with the position only and a `UCD` with the error code and the position of the element.
+  Only the first error of a message is told.
+- **Rejected**: the interchange itself has an error (its UNB, UNG, UNE or UNZ, a file that is cut
+  off, an unsupported syntax version): `UCI` action 4, the first error (the tag of the segment is
+  said only when it is a service segment), and no `UCM`. A file that is cut off or stops being
+  readable rejects the interchange it stopped in; if every interchange before it was whole, it is a
+  new one, which is rejected without a record of what it was (`notAnswered: "no_address"`).
+- **UNB 0031 is honoured**: a CONTRL is written for an interchange whose UNB asks for one (its ninth
+  element, 0031, is `1`; any other value, or none, does not); without that `contrl()` gives null
+  and `notAnswered` is `"not_requested"`, unless `always: true`. An interchange whose UNB does not
+  say who sent it or who it is for cannot be answered either (`"no_address"`). It is `rejected`
+  all the same, and its `summary` is there to log.
+- It takes the service characters of the interchange answered, and its character set and syntax
+  version unless `characterSet` and `syntaxVersion` say otherwise; the date and time are UTC and
+  come from `now`; one line feed follows each segment, as in the corpus (`lineBreak`). Values taken
+  from the interchange answered are copied as they came, with `?` for a character that the set of
+  the CONTRL cannot hold. The `reference` of the CONTRL and `now` are checked: a reference that the
+  set does not allow, or a date that is not one, is a `RangeError`.
+- **The error codes** (UCI/UCM/UCS/UCD, `0085`) are in one table, `CONTRL_ERROR_CODES`, with
+  `DEFAULT_CONTRL_ERROR_CODE` (12) for an issue the table does not know. **The corpus uses 28
+  (references that do not match) and 29 (a control count that does not), and says they are written
+  from memory of ISO 9735 and unverified; every other value of the table is also from memory.**
+  Nobody has checked them against the standard or a partner's guideline: do it before relying on a
+  CONTRL in production, and change the table and the corpus together. The `UCS` and `UCD` layout is
+  from memory too, and the four samples have none.
+
+`validate(bytes, { summary: true })` is what feeds it: `report.interchanges` has, for each
+interchange, its UNB data (reference, sender, recipient, 0031), whether it was read to its UNZ
+(`closed`), its messages (reference, identifier, offsets), how many errors each had and the first
+one, which is the one nearest the start of the file. Every issue counts, including those beyond
+`maxIssues`. It costs a record for each message, so it is off by default (`interchanges` is empty).
+
+**Reading and correlating (#50).** `readContrl(bytes)` finds the CONTRL messages of a file (the
+other messages are left alone, whether they are in a group or not) and gives one
+`InterchangeAcknowledgement` for each `UCI`: the reference, sender and recipient it names, its
+action and status (`accepted`, `rejected`, `received` for action 8, `unknown`), the error it gives,
+and the messages (`UCM`) after it with theirs and with the `segmentErrors` that their `UCS` and
+`UCD` give; `outcome` says `accepted`, `partially_rejected` (an accepted interchange with a
+rejected message) or `rejected`. A file that is damaged does not throw: what was read before the
+damage is returned and `complete` is false. `sentFrom(summary)` keeps what is needed of an
+interchange that was sent (null when it has no reference or parties), and
+`correlate(acknowledgements, sent)` matches them by reference and by sender and recipient (the
+qualifiers are compared when both sides have one), each sent interchange once. A `Correlation` has
+the interchange `sent` (null if none matches) and `problems`: `UNKNOWN_INTERCHANGE` (no interchange
+sent has this reference), `PARTIES_DIFFER` (the reference is known but the parties are not),
+`DUPLICATE_ACKNOWLEDGEMENT` (the interchange was already acknowledged by an earlier CONTRL),
+`UNKNOWN_MESSAGE` (the CONTRL names a message the interchange did not have) and
+`MESSAGE_NOT_ACKNOWLEDGED` (an accepted interchange whose CONTRL names some messages and leaves
+out one it had). `pending` lists the interchanges sent that no acknowledgement named.
+
 ## Character sets
 
 UNB names the character set in the first component of S001. The splitter reads that component as
@@ -485,6 +573,17 @@ position in the terms of the registry (segment, tag, element, component counted 
   the file (without its line breaks), and the tree written as data with `serializeData` gives the
   same bytes, with text values and with byte values; the five syntax 4 samples also parse to the
   same tree without their UNA string;
+- CONTRL: the CONTRL generated for each interchange the four CONTRL samples answer is the sample, byte
+  for byte; the file it makes validates and reads back as what it says; UNB 0031, no UNB, no
+  address, syntax and character set (a value the set cannot hold is replaced, not an exception),
+  date formats, the first error at each level, `UCS` and `UCD` for the errors of a body; the
+  summary of a validation (attribution of errors to messages, including issues beyond `maxIssues`,
+  a message without UNT, a file cut off in the first or the second message or interchange, several
+  interchanges in a file, 20,000 messages without UNT in a time that does not grow with their
+  number); reading the four samples, several interchanges in one CONTRL, a CONTRL in a group and a
+  damaged one; correlation (matches, unknown, other parties, qualifiers, twice, messages named and
+  forgotten, pending, 20,000 at once); a property that `acknowledge` never throws on a mutilated
+  sample and that what it writes reads back;
 - the validator with a registry: all 24 valid samples have no error and all 17 invalid samples give
   exactly their expected code and position, against the corpus registries; examples for each
   structure rule (missing, too often, out of order, unknown, groups, a message with no UNT), each
@@ -539,6 +638,8 @@ quiet moment; runs agree within 5 %, but expect other machines to differ):
 | `splitMessages`, without the character check | 209 MB/s (the check adds about 28 % to the time) |
 | `parseMessages`, building every message | 126 MB/s, 14,500 orders/s, **68 µs per 8.5 KB order** (3.4 % of the 2 ms budget of ADR 10) |
 | `validate`, the file and its envelopes | 125 to 126 MB/s, 14,700 orders/s, **68 µs per order**: 4 µs more than parsing, 3.4 % of the 2 ms budget (measured on a quieter moment than the rows around it, where `parseMessages` ran at 133 MB/s) |
+| `validate` with `summary: true`, the count and first error of each interchange and message | 122 MB/s, 14,300 orders/s, **70 µs per order**: under 2 µs more than `validate` (measured on a busy machine, load average 43 to 57, where the two rows differ by about 2 %) |
+| `acknowledge`, that validation and the CONTRL, with one `UCM` for each of the 1,087 orders | 115 MB/s, 13,500 orders/s, **74 µs per order**: writing the CONTRL (about 7 KB) is not on a hot path, once per interchange, and below the noise of the row above |
 | `validate` with a registry, the structure and every value | 43 to 44 MB/s, 5,050 to 5,150 orders/s, **195 to 198 µs per order**: about 131 µs more than parsing, 10 % of the 2 ms budget (a registry of the corpus: 20 segments, 80 lines of orders) |
 | ... and visiting every segment, element and component | 86 MB/s, 10,000 orders/s |
 | ... and reading every value as text | 31 MB/s, 3,600 orders/s, 277 µs per order |
