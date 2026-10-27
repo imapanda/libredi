@@ -1,5 +1,5 @@
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { closeSync, existsSync, openSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -109,14 +109,19 @@ describe("the program as a process", () => {
   it.skipIf(!existsSync("/dev/full"))(
     "exits 4 and says so when the output cannot be written",
     () => {
-      const full = spawnSync(
-        "sh",
-        ["-c", '"$0" "$1" inspect "$2" > /dev/full', process.execPath, main, MINIMAL],
-        { encoding: "utf8" },
-      );
-      expect(full.status).toBe(4);
-      expect(full.stderr).toMatch(/^libredi: .*ENOSPC/);
-      expect(full.stderr).not.toContain("    at ");
+      // Standard output is /dev/full, which refuses every write; no shell is involved.
+      const full = openSync("/dev/full", "w");
+      try {
+        const result = spawnSync(process.execPath, [main, "inspect", MINIMAL], {
+          encoding: "utf8",
+          stdio: ["ignore", full, "pipe"],
+        });
+        expect(result.status).toBe(4);
+        expect(result.stderr).toMatch(/^libredi: .*ENOSPC/);
+        expect(result.stderr).not.toContain("    at ");
+      } finally {
+        closeSync(full);
+      }
     },
     SLOW,
   );
@@ -137,7 +142,7 @@ describe("the program as a process", () => {
     SLOW,
   );
 
-  it.skipIf(process.platform === "win32")(
+  it(
     "stops quietly when whoever reads its output stops reading",
     async () => {
       const folder = await mkdtemp(join(tmpdir(), "libredi-cli-pipe-"));
@@ -148,15 +153,31 @@ describe("the program as a process", () => {
           (_unused, i) => `UNH+${i + 1}+ORDERS:D:96A:UN'BGM+220'UNT+3+${i + 1}'`,
         );
         await writeFile(file, `UNB+UNOA:3+A:1+B:1+301015:0830+R1'${messages.join("")}UNZ+4000+R1'`);
-        const piped = spawnSync(
-          "sh",
-          ["-c", `"$0" "$1" inspect "$2" | head -n 1`, process.execPath, main, file],
-          {
-            encoding: "utf8",
-          },
-        );
-        expect(piped.stdout).toContain("big.edi: ");
-        expect(piped.stderr).toBe("");
+        // The reader takes the first block of output and closes the pipe, as `| head` does.
+        const child = spawn(process.execPath, [main, "inspect", file], {
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        let stderr = "";
+        child.stderr.setEncoding("utf8");
+        child.stderr.on("data", (chunk: string) => {
+          stderr += chunk;
+        });
+        const first = new Promise<string>((resolve) => {
+          child.stdout.once("data", (chunk: Buffer) => {
+            resolve(chunk.toString("utf8"));
+            child.stdout.destroy();
+          });
+        });
+        const closed = new Promise<number | null>((resolve) => {
+          child.once("close", resolve);
+        });
+        try {
+          expect(await first).toContain("big.edi: ");
+          expect(await closed).toBe(0);
+          expect(stderr).toBe("");
+        } finally {
+          child.kill();
+        }
       } finally {
         await rm(folder, { recursive: true, force: true });
       }
