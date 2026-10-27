@@ -6,7 +6,9 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing/corpus": "./src/testing/corpus.ts",
+    "./testing/corpus-registry": "./src/testing/corpus-registry.ts"
   },
   "scripts": {
     "bench": "node --expose-gc bench/run.ts",

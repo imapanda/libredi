@@ -19,12 +19,15 @@ nothing else.
 ## Running it
 
 ```bash
-pnpm --filter @libredi/registry libredi registry build --out /var/lib/libredi/registry
+pnpm --filter @libredi/cli libredi registry build --out /var/lib/libredi/registry
 ```
 
-`libredi registry build` is the command; until the `libredi` program exists, the `libredi` script of
-the package runs it (it is `node src/main.ts`, and takes the arguments that follow the name of the
-program). It writes one file per directory, `d96a.json` and `d01b.json`, in the output folder.
+`libredi registry build` is the command of the `libredi` program ([`packages/cli`](../packages/cli),
+which hands the arguments after `registry` to this package's `runCli`). The `libredi` script of
+`packages/registry` runs the same code (`node src/main.ts`) without the other commands. The
+registries it writes can be handed to `libredi inspect --registry <folder>`.
+
+The command writes one file per directory, `d96a.json` and `d01b.json`, in the output folder.
 
 | Option | Meaning |
 | --- | --- |

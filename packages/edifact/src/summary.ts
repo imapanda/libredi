@@ -29,7 +29,7 @@ export interface MessageSummary {
   readonly identifier: readonly string[];
   /** The number in the interchange of its UNH segment. */
   readonly firstSegment: number;
-  /** Offsets of the first and last byte of the message. */
+  /** Offsets of the first byte of the message, and of the one after its UNT (end excluded). */
   readonly start: number;
   readonly end: number;
   /** Errors found in the message, all of them, and the first. */

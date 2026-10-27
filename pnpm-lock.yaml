@@ -209,6 +209,25 @@ importers:
         specifier: 'catalog:'
         version: 2.5.15
 
+  packages/cli:
+    dependencies:
+      '@libredi/edifact':
+        specifier: workspace:*
+        version: link:../edifact
+      '@libredi/registry':
+        specifier: workspace:*
+        version: link:../registry
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(yaml@2.9.1))
+
   packages/contracts:
     devDependencies:
       '@seriousme/openapi-schema-validator':

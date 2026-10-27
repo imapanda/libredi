@@ -1,5 +1,5 @@
 import type { IssueSink } from "./envelope.ts";
-import type { IssueDraft } from "./issues.ts";
+import { type IssueDraft, shown } from "./issues.ts";
 import type { LineColumn } from "./line-index.ts";
 import type { ElementDef, PositionDef, SegmentDef } from "./registry.ts";
 import type { Component, MessageInterchange, Segment } from "./tree.ts";
@@ -296,7 +296,7 @@ function checkValue(
           def.type === "n"
             ? `a number (digits, with "${String.fromCharCode(interchange.separators.decimalMark)}" as the decimal mark)`
             : "letters only",
-        found: shownValue(component.text()),
+        found: shown(component.text()),
         offset: component.start,
       },
       locate,
@@ -344,12 +344,12 @@ function checkValue(
           ...where,
           code: "UNKNOWN_CODE",
           name: def.label,
-          found: shownValue(text),
+          found: shown(text),
           severity: codes.closed ? "error" : "warning",
           ...(codes.closed
             ? {}
             : {
-                message: `The ${where.tag} segment has the code ${shownValue(text)} in ${def.label}, which is not in its code list; the list is open (the directory only knows some of the codes), so the code may still be right.`,
+                message: `The ${where.tag} segment has the code ${shown(text)} in ${def.label}, which is not in its code list; the list is open (the directory only knows some of the codes), so the code may still be right.`,
               }),
           offset: component.start,
         },
@@ -357,12 +357,6 @@ function checkValue(
       );
     }
   }
-}
-
-const MAX_SHOWN = 32;
-
-function shownValue(text: string): string {
-  return text.length > MAX_SHOWN ? `${text.slice(0, MAX_SHOWN)}...` : text;
 }
 
 /**
