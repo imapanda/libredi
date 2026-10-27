@@ -51,6 +51,7 @@ access; only `connectors` can reach partners. `scripts/smoke-compose.sh` checks 
 | `packages/service-kit` | Shared runtime of the TypeScript services: `/healthz`, port handling, graceful shutdown. |
 | `packages/contracts` | Tests that check that the files in `contracts/` are valid, and the TypeScript types generated from them (`@libredi/contracts/canonical/v1`, `/api`, `/jobs`). Each service tests its own responses against the contracts. |
 | `packages/edifact` | The UN/EDIFACT engine. Today: the tokenizer (bytes in, flat tokens out), the character sets UNOA, UNOB, UNOC and UNOW, the splitter that finds the messages of a file in constant memory, the tree of messages with positions and a memory budget, and the serializer (a parsed tree byte for byte, or built data with the service characters and character set it is given), with syntax version 4 (the repetition separator), the CONTRL acknowledgement (written from a validation, read and matched with what was sent), and the validator (the file, its envelopes and, against a registry, the structure and data of its messages, with plain-language errors, see [Validation errors](validation-errors.md)); tested against `samples/edifact`, with a benchmark. See its [README](../packages/edifact/README.md). |
+| `packages/cli` | The `libredi` program: `libredi inspect <file>` shows an EDIFACT file and what is wrong with it, as text or JSON, with documented exit codes; `libredi registry build` runs the registry generator. See its [README](../packages/cli/README.md). |
 | `packages/registry` | The registry generator ([docs](registry-generator.md)): downloads the UN/ECE directories, parses them into the EDIFACT definition registry of `contracts/registry/`, and checks the result. Tests use fictitious files only. |
 | `samples/edifact` | Fictitious EDIFACT interchanges with expected results, for the tokenizer, parser and validator. See its [README](../samples/edifact/README.md). |
 | `contracts/` | OpenAPI (`openapi/`), job JSON Schemas (`jobs/`), canonical documents (`canonical/`), the mapping format (`mapping/`) and the EDIFACT registry schema (`registry/`), written before the code. See its [README](../contracts/README.md). |
@@ -77,7 +78,8 @@ with the milestones of the [roadmap](roadmap.md).
 | `pnpm --filter @libredi/api dev` | Run a service from source with `node --watch`. |
 | `scripts/check-pins.sh` | Check that the Node.js, pnpm, Go and Biome versions agree across files. |
 | `scripts/check-derived-data.sh` | Check that Git tracks no UN/EDIFACT directory file and no registry built from one ([ADR 7](adr/0007-standards-licensing.md)). |
-| `pnpm --filter @libredi/registry libredi registry build` | Build the EDIFACT definition registry from the UN/ECE directories ([docs](registry-generator.md)). |
+| `pnpm --filter @libredi/cli libredi inspect <file>` | Show an EDIFACT file, validate it (`--json`, `--registry <path>`, exit status 0, 1, 2 or 3): see the [README](../packages/cli/README.md). |
+| `pnpm --filter @libredi/cli libredi registry build` | Build the EDIFACT definition registry from the UN/ECE directories ([docs](registry-generator.md)). |
 | `scripts/smoke-image.sh api` | Build one image, run it locked down, check health, user and shutdown. |
 | `scripts/smoke-compose.sh` | The acceptance test: whole stack, three workers, routes, network isolation, pgmq. |
 
