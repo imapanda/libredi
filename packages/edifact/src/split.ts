@@ -16,6 +16,7 @@ import {
   type InterchangeInfo,
   type ParseIssue,
   ParseIssueCode,
+  type Position,
   type ServiceStringAdvice,
   type Span,
 } from "./types.ts";
@@ -27,6 +28,12 @@ export interface SplitOptions {
   readonly maxIssues?: number;
   /** Tokens per batch of the tokenizer underneath. */
   readonly batchSize?: number;
+  /**
+   * Called for every issue found in a value, kept or not, as the value is read: that is, before
+   * the message that holds it is handed out. For a caller that needs to count the issues of each
+   * message without keeping them.
+   */
+  readonly onIssue?: (code: ParseIssue["code"], position: Position, offset: number) => void;
 }
 
 /** A message located in the file: where it is and which interchange and group it is in. */
@@ -141,6 +148,7 @@ export class Splitter {
   messageCount = 0;
   readonly #check: boolean;
   readonly #maxIssues: number;
+  readonly #onIssue: SplitOptions["onIssue"] | null;
   readonly #tokenizer: Tokenizer;
   /** Issues come in file order, so their lines and columns are found in one pass in all. */
   readonly #lines: LineCursor;
@@ -178,6 +186,7 @@ export class Splitter {
     this.source = new Source(bytes);
     this.#check = options.checkCharacters ?? true;
     this.#maxIssues = maxIssues;
+    this.#onIssue = options.onIssue ?? null;
     this.#lines = new LineCursor(bytes);
     this.#tree = tree;
     this.#builder = tree === null ? null : tree.builder;
@@ -399,6 +408,7 @@ export class Splitter {
           );
         } else {
           this.issueCount++;
+          this.#onIssue?.(ParseIssueCode.InvalidCharacter, this.#where(), bad);
         }
       }
     }
@@ -503,6 +513,16 @@ export class Splitter {
     );
   }
 
+  /** Where the value being read is, in the terms of an issue. */
+  #where(): Position {
+    return {
+      segment: this.segmentNumber,
+      tag: tagName(this.tagCode),
+      element: this.elementNo,
+      component: this.componentNo,
+    };
+  }
+
   report(
     code: ParseIssue["code"],
     message: string,
@@ -511,6 +531,7 @@ export class Splitter {
     found: string,
   ): void {
     this.issueCount++;
+    this.#onIssue?.(code, this.#where(), offset);
     if (this.issues.length < this.#maxIssues) {
       const { line, column } = this.#lines.advanceTo(offset);
       this.issues.push({
