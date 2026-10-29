@@ -91,6 +91,8 @@ envelope, which is checked without a registry). \`expected\` and \`found\` are s
   after 32 characters and its control characters are shown as \`?\`, so that a message can be put in
   a log as it is.
 - \`formatIssue(issue)\` writes an issue as a block for a terminal or a log.
+- **A partner can change the severity of a code**, for one flow, or drop it: see
+  [Partner overrides](partner-overrides.md). The codes under File integrity cannot be changed.
 `;
 
 export function catalogueMarkdown(): string {

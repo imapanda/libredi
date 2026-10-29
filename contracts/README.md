@@ -10,6 +10,7 @@ them. A service in any language reads these files; none of them is generated fro
 | [`canonical/`](canonical/README.md) | The neutral order, order response, despatch advice and invoice (JSON Schema 2020-12, versioned) | The documents partner mappings produce and ERP exports read |
 | [`mapping/`](mapping/README.md) | The YAML format of a mapping, with its JSON Schema and examples | Declarative conversion between a message and a canonical document |
 | [`registry/registry.schema.json`](registry/registry.schema.json) | The EDIFACT definition registry: segments, composites, data elements, code lists, message structures (JSON Schema 2020-12) | The registry generator writes it; the parser and the validator read it. See its [README](registry/README.md) |
+| [`overrides/overrides.schema.json`](overrides/overrides.schema.json) | The rules a partner or a flow changes in a registry: element rules, mandatory positions, code-list changes, structure cardinalities, severities (JSON Schema 2020-12). See its [README](overrides/README.md) | The validator applies it on top of a registry; a service stores it per partner |
 
 ## Rules
 

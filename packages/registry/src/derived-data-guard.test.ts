@@ -51,6 +51,9 @@ describe("scripts/check-derived-data.sh", () => {
         '{ "properties": { "dataElements": {} }, "enum": ["unece-directory"] }',
       "contracts/registry/examples/fictitious-registry.json": REGISTRY("handwritten"),
       "packages/registry/src/test-support/fixtures/d01b-layout/elements.txt": "invented\n",
+      "contracts/overrides/overrides.schema.json": '{ "properties": { "dataElements": {} } }',
+      "contracts/overrides/examples/fictitious-retailer.overrides.json":
+        '{ "schemaVersion": 1, "dataElements": { "9002": { "maxLength": 12 } } }',
       "docs/notes.md": "The licence agreement of the directories forbids redistribution.\n",
     });
     expect(guard(dir)).toMatchObject({ status: 0 });
@@ -104,6 +107,22 @@ describe("scripts/check-derived-data.sh", () => {
     const result = guard(dir);
     expect(result.status).toBe(1);
     expect(result.output).toContain("docs/copied.txt");
+  });
+
+  it("still refuses a registry that hides next to the overrides, or anywhere else", () => {
+    const dir = repository({
+      "contracts/overrides/examples/ok.overrides.json": '{ "dataElements": {} }',
+      "contracts/overrides-copy/registry.json": REGISTRY("handwritten"),
+      "packages/x/overrides.json": '{ "dataElements": {} }',
+    });
+    const result = guard(dir);
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("contracts/overrides-copy/registry.json");
+    expect(result.output).toContain("packages/x/overrides.json");
+    expect(result.output).not.toContain("contracts/overrides/examples/ok.overrides.json");
+    // A registry built from the directories is refused in the overrides folder as well.
+    const built = repository({ "contracts/overrides/built.json": REGISTRY("unece-directory") });
+    expect(guard(built).status).toBe(1);
   });
 
   it("lists every offender once", () => {

@@ -6,5 +6,7 @@ export type { DirectoryPin } from "./directories.ts";
 export { DIRECTORIES, findDirectory } from "./directories.ts";
 export type { DownloadOptions, ObtainedDirectory, ObtainOptions } from "./download.ts";
 export { DownloadError, obtainDirectory, sha256Hex } from "./download.ts";
+export type { Overrides } from "./overrides.ts";
+export { checkOverrides, validateOverrides } from "./overrides.ts";
 export { validateRegistry } from "./schema.ts";
 export type * from "./types.ts";

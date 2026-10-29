@@ -385,7 +385,32 @@ no registry describes is not checked and gets a `MESSAGE_NOT_CHECKED` warning (w
   knows, and reports a value they lack as a warning; `"off"` skips them. A code is matched exactly
   (case counts).
 - It does not check the envelope data against a registry (UNB, UNG, UNH, UNT, UNE, UNZ have their own
-  rules above), CONTRL, or partner-specific rules and overrides.
+  rules above) or CONTRL.
+- **Partner overrides** (below) change the rules of a registry for one flow.
+
+### Partner overrides
+
+```ts
+import { applyOverrides, validate, type OverridesView } from "@libredi/edifact";
+
+const report = validate(bytes, { registries: [registry], overrides: [retailer, retailerOrders] });
+const forThisFlow = applyOverrides(registry, retailer); // the registry with the rules applied
+```
+
+A document of [`contracts/overrides`](../../contracts/overrides/README.md) changes, for one call,
+the registry of its directory without editing it: stricter or looser data elements, positions and
+composite components made mandatory or conditional, codes added to or removed from a list, lists
+opened or closed, cardinalities of segments and groups in a message, and the severity of an issue
+code (`error`, `warning`, or `off`, which drops the issue). Documents are applied in order, the last
+winning; one for another directory changes nothing but the severities, which are the call's. The
+validator judges the changed rules with the code it uses for the directory, so the issues and their
+messages are the same ones. `applyOverrides` does not change its arguments and keeps its result for
+a pair of objects, so that a service pays once for a flow: do not edit a registry or a document
+after it was first used. `overrides` is a list, even for one document. The codes of a file that
+cannot be read (layer `tokenizer`) cannot be changed. `OverridesView` is the part of the document
+that is read, so this package does not depend on the registry package, whose `validateOverrides()`
+and `checkOverrides()` check a document before it is used. [Partner
+overrides](../../docs/partner-overrides.md) says what to write.
 
 **Cost.** Checking the structure and every value of the generated orders of the benchmark (80 lines,
 8.5 KB) costs about 130 µs per order on top of parsing, see the [benchmark](#benchmark). A definition

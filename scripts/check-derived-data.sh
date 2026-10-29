@@ -4,7 +4,9 @@
 # The UN/ECE licence forbids distributing a modified directory, so the repository must hold no
 # directory file and no registry generated from one (ADR 7). The registry generator writes its output
 # on the operator's machine; the only registries in Git are the schema and the hand-written example in
-# contracts/registry. This runs on every pull request (see ci.yml) and can be run by hand.
+# contracts/registry. The partner overrides of contracts/overrides name data elements too, but are
+# rules of a partner and carry no directory text. This runs on every pull request (see ci.yml) and
+# can be run by hand.
 set -eu
 
 cd "$(dirname "$0")/.."
@@ -32,7 +34,8 @@ git grep -I -l -i -F \
 
 # 3. A registry built from UN/ECE files, or any registry outside the folder of the contract.
 git grep -I -l -E '"kind" *: *"unece-directory"' -- '*.json' >>"$found" || true
-git grep -I -l '"dataElements"' -- '*.json' ':(exclude)contracts/registry/*' >>"$found" || true
+git grep -I -l '"dataElements"' -- '*.json' ':(exclude)contracts/registry/*' \
+  ':(exclude)contracts/overrides/*' >>"$found" || true
 
 if [ -s "$found" ]; then
   {
