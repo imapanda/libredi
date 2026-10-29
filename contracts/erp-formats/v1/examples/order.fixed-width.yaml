@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../fixed-width.schema.json
+formatVersion: 1
+format: fixed-width
+name: ERP orders, fixed width
+description: >-
+  A canonical order in the fixed-width file of a fictitious ERP: a 01 record per order, then a
+  02 record per line. Quantities and prices are right-aligned and padded with zeros; prices
+  have implied decimals.
+encoding: windows-1252
+lineEnding: crlf
+files:
+  - name: ORDERS.TXT
+    records:
+      - name: header
+        columns:
+          - { name: RECORD, value: "01", width: 2 }
+          - { name: ORDER_NO, field: documentNumber, width: 15, required: true }
+          - { name: ORDER_DATE, field: issueDate, width: 10, required: true }
+          - { name: DELIVERY_DATE, field: requestedDeliveryDate, width: 10 }
+          - { name: BUYER_GLN, field: parties.buyer.gln, width: 13, required: true }
+          - { name: BUYER_NAME, field: parties.buyer.name, width: 30, overflow: truncate }
+          - { name: FILLER, value: "", width: 5 }
+      - name: line
+        source: lines
+        columns:
+          - { name: RECORD, value: "02", width: 2 }
+          - { name: LINE, field: lineNumber, type: integer, width: 4, pad: "0", required: true }
+          - { name: GTIN, field: product.gtin, width: 14 }
+          - { name: DESCRIPTION, field: product.description, width: 30, overflow: truncate }
+          - { name: QUANTITY, field: quantity.value, type: decimal, scale: 3, width: 10, pad: "0" }
+          - { name: UNIT, field: quantity.unit, width: 3 }
+          - name: UNIT_PRICE
+            field: unitPrice.amount
+            type: decimal
+            scale: 2
+            impliedDecimals: true
+            width: 9
+            pad: "0"

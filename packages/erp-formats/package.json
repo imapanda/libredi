@@ -2,7 +2,7 @@
   "name": "@libredi/erp-formats",
   "version": "0.0.0",
   "private": true,
-  "description": "The files ERPs import and export: CSV read and written from a configurable layout, JSON and XML written, all from canonical documents or what a mapping gives",
+  "description": "The files ERPs import and export: CSV and fixed width read and written from a configurable layout, JSON and XML written, all from canonical documents or what a mapping gives",
   "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
