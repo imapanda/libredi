@@ -25,6 +25,7 @@
   "exports": {
     "./canonical/v1": "./src/generated/canonical-v1.ts",
     "./api": "./src/generated/api.ts",
-    "./jobs": "./src/generated/jobs.ts"
+    "./jobs": "./src/generated/jobs.ts",
+    "./reference-evaluator": "./src/reference-evaluator.ts"
   }
 }

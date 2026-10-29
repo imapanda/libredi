@@ -1,6 +1,7 @@
 import { runCli as registry } from "@libredi/registry/cli";
 import { type CliContext, EXIT } from "./context.ts";
 import { inspect } from "./inspect.ts";
+import { testMapping } from "./test-mapping.ts";
 
 export { type CliContext, EXIT } from "./context.ts";
 
@@ -10,14 +11,17 @@ Commands:
   inspect <file>
     Show the interchanges, messages and segments of an EDIFACT file, and what is wrong with it
     (text, or JSON with --json).
+  test <mapping>
+    Run the fixtures of a mapping in the sandbox, and show how the output differs from what
+    each fixture expects.
   registry build
     Build the EDIFACT definition registry from the UN/ECE directories.
 
 Run \`libredi <command> --help\` for the options of a command.
 
-Exit status: 0 on success, 1 when inspect finds errors in the file or a registry build fails,
-2 on a usage error, 3 when a file or a registry cannot be read, 4 on another failure. Each
-command's help says more.
+Exit status: 0 on success, 1 when inspect finds errors in the file, a fixture fails or a
+registry build fails, 2 on a usage error, 3 when a file, a mapping or a registry cannot be read
+or is not valid, 4 on another failure. Each command's help says more.
 `;
 
 /**
@@ -59,6 +63,8 @@ export async function run(argv: readonly string[], context: CliContext): Promise
   switch (command) {
     case "inspect":
       return inspect(rest, context);
+    case "test":
+      return testMapping(rest, context);
     case "registry":
       return registryCommand(argv, context);
     case "-h":

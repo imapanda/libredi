@@ -18,11 +18,11 @@ export interface CliContext {
 export const EXIT = {
   /** Done, and for `inspect` the file has no error (warnings do not count). */
   ok: 0,
-  /** `inspect`: the file has errors, or holds no interchange. */
+  /** `inspect`: the file has errors, or holds no interchange. `test`: a fixture fails. */
   invalid: 1,
   /** The command line is wrong. */
   usage: 2,
-  /** A file or a registry cannot be read. */
+  /** A file, a registry or a mapping cannot be read, or is not valid. */
   unreadable: 3,
   /** Something else went wrong: the output cannot be written, or a bug. */
   failed: 4,
