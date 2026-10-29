@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../csv.schema.json
+formatVersion: 1
+format: csv
+name: ERP orders, header file and lines file
+description: >-
+  A canonical order written to two files, as many ERPs import them: one row per order in the
+  header file, one row per line in the lines file. The order number, in both files, matches
+  the lines to their order when reading.
+encoding: utf-8
+lineEnding: lf
+separator: ","
+quoting: minimal
+files:
+  - name: order-headers.csv
+    header: true
+    records:
+      - name: header
+        columns:
+          - { name: order_number, field: documentNumber, required: true }
+          - { name: order_date, field: issueDate, required: true }
+          - { name: buyer_gln, field: parties.buyer.gln, required: true }
+          - { name: buyer_name, field: parties.buyer.name }
+          - { name: supplier_gln, field: parties.supplier.gln, required: true }
+  - name: order-lines.csv
+    header: true
+    records:
+      - name: line
+        source: lines
+        columns:
+          - { name: order_number, documentField: documentNumber, required: true }
+          - { name: line, field: lineNumber, type: integer, required: true }
+          - { name: gtin, field: product.gtin }
+          - { name: description, field: product.description }
+          - { name: quantity, field: quantity.value, type: decimal, required: true }
+          - { name: unit, field: quantity.unit }
+          - { name: unit_price, field: unitPrice.amount, type: decimal }
