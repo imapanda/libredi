@@ -51,6 +51,12 @@ export {
 } from "./issues.ts";
 export type { LineColumn } from "./line-index.ts";
 export {
+  applyOverrides,
+  type OverridesView,
+  type SeverityRule,
+  severityRules,
+} from "./overrides.ts";
+export {
   MessageStream,
   type ParseOptions,
   type ParseResult,

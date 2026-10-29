@@ -56,7 +56,7 @@ access; only `connectors` can reach partners. `scripts/smoke-compose.sh` checks 
 | `packages/mapping` | The mapping runner: a pure evaluator of the mappings of `contracts/mapping` (also for the browser preview), and a pool of worker threads that sandboxes it with time, depth, sequence and memory limits. See its [README](../packages/mapping/README.md). |
 | `packages/registry` | The registry generator ([docs](registry-generator.md)): downloads the UN/ECE directories, parses them into the EDIFACT definition registry of `contracts/registry/`, and checks the result. Tests use fictitious files only. |
 | `samples/edifact` | Fictitious EDIFACT interchanges with expected results, for the tokenizer, parser and validator. See its [README](../samples/edifact/README.md). |
-| `contracts/` | OpenAPI (`openapi/`), job JSON Schemas (`jobs/`), canonical documents (`canonical/`), the mapping format (`mapping/`), the ERP file formats (`erp-formats/`) and the EDIFACT registry schema (`registry/`), written before the code. See its [README](../contracts/README.md). |
+| `contracts/` | OpenAPI (`openapi/`), job JSON Schemas (`jobs/`), canonical documents (`canonical/`), the mapping format (`mapping/`), the ERP file formats (`erp-formats/`), the EDIFACT registry schema (`registry/`) and the partner overrides schema (`overrides/`), written before the code. See its [README](../contracts/README.md). |
 | `infra/postgres`, `infra/caddy` | Image of PostgreSQL with pgmq; configuration of the reverse proxy. |
 | `compose.yaml`, `.env.example` | The stack on one machine. |
 | `tools/codegen` | Go module that pins the generators of the Go code (`oapi-codegen`, `go-jsonschema`). |

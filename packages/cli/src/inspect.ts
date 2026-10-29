@@ -11,7 +11,7 @@ import {
 import { type CliContext, EXIT } from "./context.ts";
 import { jsonReport } from "./json.ts";
 import { plain, reason } from "./plain.ts";
-import { loadRegistries, RegistryError } from "./registries.ts";
+import { InputError, loadOverrides, loadRegistries } from "./registries.ts";
 import { type Head, textReport } from "./text.ts";
 import { walk } from "./walk.ts";
 
@@ -32,6 +32,9 @@ Options:
                         file, or a folder of them such as the one \`libredi registry build\`
                         writes. Repeat for several. Without one, only the file and its
                         envelopes are checked.
+  --overrides <path>    A document of partner overrides (contracts/overrides): the rules a
+                        partner changes, applied on top of the registry of its directory, which
+                        --registry must give. Repeat for several; the last one wins.
   --no-tree             Leave out the segments: list the interchanges and messages only.
   --max-issues <n>      Most issues to list; all are counted. Default 1000.
   --code-lists <mode>   Which code lists are enforced: closed (the default: the lists that hold
@@ -54,6 +57,7 @@ interface Arguments {
   readonly file: string;
   readonly json: boolean;
   readonly registries: readonly string[];
+  readonly overrides: readonly string[];
   readonly tree: boolean;
   readonly maxIssues: number | undefined;
   readonly codeLists: CodeListCheck | undefined;
@@ -80,6 +84,7 @@ function parseArguments(argv: readonly string[]): Arguments | "help" {
     options: {
       json: { type: "boolean" },
       registry: { type: "string", multiple: true },
+      overrides: { type: "string", multiple: true },
       "no-tree": { type: "boolean" },
       "max-issues": { type: "string" },
       "code-lists": { type: "string" },
@@ -101,6 +106,10 @@ function parseArguments(argv: readonly string[]): Arguments | "help" {
   if (registries.includes("")) {
     throw new UsageError("--registry expects the path of a registry file or folder");
   }
+  const overrides = values.overrides ?? [];
+  if (overrides.includes("")) {
+    throw new UsageError("--overrides expects the path of a document of overrides");
+  }
   const mode = values["code-lists"];
   if (mode !== undefined && mode !== "closed" && mode !== "all" && mode !== "off") {
     throw new UsageError(`--code-lists expects closed, all or off, not "${mode}"`);
@@ -109,6 +118,7 @@ function parseArguments(argv: readonly string[]): Arguments | "help" {
     file,
     json: values.json === true,
     registries,
+    overrides,
     tree: values["no-tree"] !== true,
     maxIssues: wholeNumber("max-issues", values["max-issues"]),
     codeLists: mode,
@@ -181,10 +191,12 @@ export async function inspect(argv: readonly string[], context: CliContext): Pro
   }
 
   let registries: Awaited<ReturnType<typeof loadRegistries>>;
+  let overrides: Awaited<ReturnType<typeof loadOverrides>>;
   try {
     registries = await loadRegistries(args.registries, cwd);
+    overrides = await loadOverrides(args.overrides, cwd, registries);
   } catch (error) {
-    if (error instanceof RegistryError) {
+    if (error instanceof InputError) {
       return fail(EXIT.unreadable, error.message);
     }
     throw error;
@@ -195,6 +207,7 @@ export async function inspect(argv: readonly string[], context: CliContext): Pro
     report = validate(bytes, {
       summary: true,
       registries,
+      overrides: overrides.map((loaded) => loaded.overrides),
       ...(args.maxIssues === undefined ? {} : { maxIssues: args.maxIssues }),
       ...(args.codeLists === undefined ? {} : { codeLists: args.codeLists }),
       ...(args.memoryBudget === undefined ? {} : { memoryBudget: args.memoryBudget }),
@@ -213,6 +226,7 @@ export async function inspect(argv: readonly string[], context: CliContext): Pro
     directories: registries.map(
       ({ directory }) => `${directory.version}.${directory.release} (${directory.agency})`,
     ),
+    overrides: overrides.map(({ path, name }) => ({ file: path, name })),
   };
   // What a CONTRL in the file says is worth showing; reading the file again is only done for one.
   const found: readonly InterchangeAcknowledgement[] = report.interchanges.some((one) =>

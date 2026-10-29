@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "name": "Example flow: documents from a fictitious retailer",
+  "description": "Invented rules for the invented directory of contracts/registry/examples. The retailer asks for a function code and a date, names the party that receives the goods, allows a code of its own for agents and no longer accepts the seller code, and wants a shorter document number than the directory does. It tolerates segments it does not know, and does not mind a date that is too short.",
+  "directory": {
+    "agency": "ZZ",
+    "version": "Z",
+    "release": "00A"
+  },
+  "dataElements": {
+    "9002": {
+      "maxLength": 12
+    }
+  },
+  "composites": {
+    "C901": {
+      "components": {
+        "2": {
+          "status": "M"
+        }
+      }
+    }
+  },
+  "segments": {
+    "XPT": {
+      "elements": {
+        "3": {
+          "status": "M",
+          "maxOccurs": 2
+        }
+      }
+    }
+  },
+  "codeLists": {
+    "9005": {
+      "add": {
+        "AG": {
+          "name": "Agent",
+          "description": "A code of the retailer."
+        }
+      },
+      "remove": ["SL"]
+    },
+    "9010": {
+      "closed": true
+    }
+  },
+  "messages": {
+    "SAMPLE": {
+      "nodes": {
+        "XDT": {
+          "status": "M"
+        },
+        "SG2/XQT": {
+          "status": "M",
+          "maxOccurs": 2
+        },
+        "XTT": {
+          "status": "M"
+        }
+      }
+    }
+  },
+  "severity": {
+    "UNKNOWN_SEGMENT": "warning",
+    "VALUE_TOO_SHORT": "off"
+  }
+}

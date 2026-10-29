@@ -16,6 +16,8 @@ export interface Head {
   readonly bytes: number;
   /** The directories of the registries the file was checked against, as written for a person. */
   readonly directories: readonly string[];
+  /** The documents of partner overrides applied, with the name each gives itself. */
+  readonly overrides: readonly { readonly file: string; readonly name: string | null }[];
 }
 
 const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? "" : "s"}`;
@@ -118,6 +120,12 @@ export function* textReport(
   yield head.directories.length === 0
     ? "No registry: only the file and its envelopes were checked (see --registry).\n"
     : `Checked against the registry of ${head.directories.join(", ")}.\n`;
+  if (head.overrides.length > 0) {
+    const named = head.overrides.map(({ file, name }) =>
+      plain(name === null ? file : `${name} (${file})`),
+    );
+    yield `With the overrides of ${named.join(", ")}.\n`;
+  }
 
   if (report.issueCount > 0) {
     const more = report.issueCount - report.issues.length;

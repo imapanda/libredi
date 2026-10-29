@@ -309,6 +309,258 @@ describe("the registries", () => {
   });
 });
 
+describe("the overrides", () => {
+  const D96A = { agency: "UN", version: "D", release: "96A" };
+  const UNKNOWN = samplePath("invalid", "unknown-code");
+  const write = async (name: string, document: unknown): Promise<string> => {
+    const path = join(scratch, name);
+    await writeFile(path, typeof document === "string" ? document : JSON.stringify(document));
+    return path;
+  };
+  const run = (path: string[], ...rest: string[]) =>
+    cli([
+      "inspect",
+      UNKNOWN,
+      "--registry",
+      registries.folder,
+      ...path.flatMap((p) => ["--overrides", p]),
+      ...rest,
+    ]);
+
+  it("change what is valid: a code the partner uses, a severity, a rule that is stricter", async () => {
+    const plain = await run([], "--no-tree");
+    expect(plain.status).toBe(1);
+    const warning = await write("warn.json", {
+      schemaVersion: 1,
+      name: "Test partner",
+      directory: D96A,
+      severity: { UNKNOWN_CODE: "warning" },
+    });
+    const lowered = await run([warning], "--no-tree");
+    expect([lowered.status, lowered.err]).toEqual([0, ""]);
+    expect(lowered.out).toContain("Result: valid (1 warning)\n");
+    expect(lowered.out).toContain(`With the overrides of Test partner (${warning}).\n`);
+    expect(lowered.out).toContain("warning UNKNOWN_CODE at line");
+
+    const added = await write("added.json", {
+      schemaVersion: 1,
+      directory: D96A,
+      codeLists: { "3035": { add: { QQQ: { name: "A code of the partner" } } } },
+    });
+    const accepted = await run([added], "--no-tree");
+    expect([accepted.status, accepted.out]).toEqual([
+      0,
+      expect.stringContaining("Result: valid\n"),
+    ]);
+    expect(accepted.out).toContain(`With the overrides of ${added}.\n`);
+
+    const stricter = await write("stricter.json", {
+      schemaVersion: 1,
+      directory: D96A,
+      dataElements: { "1004": { maxLength: 3 } },
+    });
+    const refused = await cli([
+      "inspect",
+      MINIMAL,
+      "--registry",
+      registries.folder,
+      "--overrides",
+      stricter,
+      "--no-tree",
+    ]);
+    expect(refused.status).toBe(1);
+    expect(refused.out).toContain("error VALUE_TOO_LONG at line");
+  });
+
+  it("are named in the JSON, in the order given, the last one winning", async () => {
+    const error = await write("error.json", {
+      schemaVersion: 1,
+      name: "Strict",
+      directory: D96A,
+      severity: { UNKNOWN_CODE: "error" },
+    });
+    const off = await write("off.json", {
+      schemaVersion: 1,
+      directory: D96A,
+      severity: { UNKNOWN_CODE: "off" },
+    });
+    const both = await run([error, off], "--json", "--no-tree");
+    const report = JSON.parse(both.out) as JsonReport & {
+      overrides: { file: string; name: string | null }[];
+    };
+    expect(report.overrides).toEqual([
+      { file: error, name: "Strict" },
+      { file: off, name: null },
+    ]);
+    expect(report).toMatchObject({ valid: true });
+    expect(report.counts).toMatchObject({ issues: 0, errors: 0, warnings: 0 });
+    const reversed = JSON.parse((await run([off, error], "--json", "--no-tree")).out) as JsonReport;
+    expect(reversed.valid).toBe(false);
+    const none = JSON.parse((await run([], "--json", "--no-tree")).out) as { overrides: unknown[] };
+    expect(none.overrides).toEqual([]);
+  });
+
+  it("are refused, with exit 3 and a sentence about what is wrong, when they are not usable", async () => {
+    const failures: [string[], string][] = [
+      [[join(scratch, "nothing-here.json")], "cannot read overrides"],
+      [[await write("o-broken.json", "{ nope")], "cannot read overrides"],
+      [
+        [await write("o-typo.json", { schemaVersion: 1, directory: D96A, severty: {} })],
+        'is not a valid document of overrides (contracts/overrides): / unknown property "severty"',
+      ],
+      [
+        [await write("o-version.json", { schemaVersion: 2, directory: D96A })],
+        "/schemaVersion must be 1",
+      ],
+      [
+        [
+          await write("o-nowhere.json", {
+            schemaVersion: 1,
+            directory: { agency: "UN", version: "D", release: "99Z" },
+            dataElements: { "1004": { maxLength: 3 } },
+          }),
+        ],
+        "is for D.99Z (UN) and no --registry is of that directory",
+      ],
+      [
+        [
+          await write("o-dangling.json", {
+            schemaVersion: 1,
+            directory: D96A,
+            segments: { ZZZ: { elements: { "1": { status: "M" } } } },
+          }),
+        ],
+        '/segments/ZZZ segment "ZZZ" does not exist in the registry',
+      ],
+      [
+        [
+          await write("o-position.json", {
+            schemaVersion: 1,
+            directory: D96A,
+            segments: { BGM: { elements: { "9": { status: "M" } } } },
+          }),
+        ],
+        'segment "BGM" has 4 elements: there is no position 9',
+      ],
+    ];
+    for (const [paths, why] of failures) {
+      const { status, out, err } = await run(paths);
+      expect([status, out], paths.join()).toEqual([EXIT.unreadable, ""]);
+      expect(err, paths.join()).toContain(why);
+      expect(err, paths.join()).toContain(paths[0] as string);
+    }
+  });
+
+  it("need the registry of their directory when they have rules about it, and not for severities", async () => {
+    const rules = await write("alone.json", {
+      schemaVersion: 1,
+      directory: D96A,
+      dataElements: { "1004": { maxLength: 5 } },
+    });
+    const { status, err } = await cli(["inspect", UNKNOWN, "--overrides", rules]);
+    expect(status).toBe(EXIT.unreadable);
+    expect(err).toContain("no --registry is of that directory");
+
+    // A severity is about issues, which the file has with or without a registry.
+    const severity = await write("severity-alone.json", {
+      schemaVersion: 1,
+      directory: D96A,
+      severity: { UNT_COUNT_MISMATCH: "warning" },
+    });
+    const mismatch = samplePath("invalid", "unt-count-mismatch");
+    const without = await cli(["inspect", mismatch, "--no-tree"]);
+    expect(without.status).toBe(1);
+    const lowered = await cli(["inspect", mismatch, "--overrides", severity, "--no-tree"]);
+    expect([lowered.status, lowered.err]).toEqual([0, ""]);
+    expect(lowered.out).toContain("Result: valid (1 warning)");
+  });
+
+  it("are checked one against the result of the ones before: one can build on another", async () => {
+    const base = await write("base.json", {
+      schemaVersion: 1,
+      directory: D96A,
+      codeLists: { "3035": { add: { ZZ: { name: "A code of the partner" } } } },
+      dataElements: { "1004": { maxLength: 5 } },
+    });
+    const flow = await write("flow.json", {
+      schemaVersion: 1,
+      directory: D96A,
+      codeLists: { "3035": { remove: ["ZZ"] } },
+    });
+    // On its own, the second document removes a code the registry does not have.
+    const alone = await run([flow]);
+    expect(alone.status).toBe(EXIT.unreadable);
+    expect(alone.err).toContain('code "ZZ" is not in code list "3035": there is nothing to remove');
+    const both = await run([base, flow], "--no-tree");
+    expect(both.err).toBe("");
+    expect(both.status).toBe(1);
+    expect(both.out).toContain("With the overrides of");
+
+    // Two documents that agree separately and not together are refused, with the lengths.
+    const longer = await write("longer.json", {
+      schemaVersion: 1,
+      directory: D96A,
+      dataElements: { "1004": { minLength: 10 } },
+    });
+    const clash = await run([base, longer]);
+    expect(clash.status).toBe(EXIT.unreadable);
+    expect(clash.err).toContain(
+      'minLength (10) would be greater than maxLength (5) for data element "1004"',
+    );
+    expect((await run([longer])).status).toBe(1);
+  });
+
+  it("are applied in the order named, a file named twice where it was, and from the folder the program was run in", async () => {
+    const path = await write("twice.json", {
+      schemaVersion: 1,
+      directory: D96A,
+      severity: { UNKNOWN_CODE: "off" },
+    });
+    // A file named twice is read once and applied twice, where it was named: the order is the user's.
+    const other = await write("other.json", {
+      schemaVersion: 1,
+      directory: D96A,
+      severity: { UNKNOWN_CODE: "error" },
+    });
+    const twice = await run([path, other, path], "--json", "--no-tree");
+    const named = JSON.parse(twice.out) as JsonReport & { overrides: { file: string }[] };
+    expect(named.overrides.map((one) => one.file)).toEqual([path, other, path]);
+    expect(named.valid).toBe(true);
+    expect(JSON.parse((await run([path, other], "--json", "--no-tree")).out).valid).toBe(false);
+    const relative = await cli(
+      [
+        "inspect",
+        UNKNOWN,
+        "--registry",
+        registries.folder,
+        "--overrides",
+        "twice.json",
+        "--no-tree",
+      ],
+      { cwd: scratch },
+    );
+    expect([relative.status, relative.err]).toEqual([0, ""]);
+  });
+
+  it("are looked at when the name or a file name holds what would act on a terminal", async () => {
+    const path = await write("escape\u001b[2J.json", {
+      schemaVersion: 1,
+      name: "Evil\u001b[31m name",
+      directory: D96A,
+      severity: { UNKNOWN_CODE: "warning" },
+    });
+    const { out } = await run([path], "--no-tree");
+    expect([...out].filter((char) => char < " " && char !== "\n")).toEqual([]);
+    expect(out).toContain("Evil?[31m name (");
+  });
+
+  it("are a usage error when the path is empty", async () => {
+    const { status, err } = await cli(["inspect", MINIMAL, "--overrides="]);
+    expect(status).toBe(EXIT.usage);
+    expect(err).toContain("--overrides expects the path of a document of overrides");
+  });
+});
+
 describe("the text", () => {
   it("lists the segments with their numbers and the values of each element", async () => {
     const { out } = await cli(["inspect", MINIMAL]);

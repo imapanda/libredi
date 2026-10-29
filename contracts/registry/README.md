@@ -153,7 +153,7 @@ it, and trusts it afterwards.
 | Structure validation (#44) | `messages`: order, `status`, `maxOccurs`, groups and triggers |
 | Element validation (#45) | `dataElements`: `type`, `minLength`, `maxLength`; `status` in segments and composites; `codeLists` and `closed` |
 | Error messages (#46) | `name` and `description` of every definition, `sequence` and `section` |
-| Partner overrides (#47) | Nothing: overrides are separate documents that refer to this one |
+| Partner overrides (#47) | Nothing: overrides are separate documents ([`contracts/overrides`](../overrides/README.md)) that refer to this one; the validator applies them on top of a registry |
 | Registry generator (#32) | Writes it |
 
 ## Compatibility
@@ -192,7 +192,9 @@ Decided later, when the generator (#32) reads the real files, without breaking t
 - **Names of positions.** A composite can use the same data element several times, so a message
   such as "expected 4440" is ambiguous. An optional `name` on a position would fix it.
 - **Addresses of nodes.** `sequence` is informative and not required to be unique. Partner
-  overrides (#47) need a stable way to point at a node: a uniqueness rule on `sequence` would do.
+  overrides ([`contracts/overrides`](../overrides/README.md)) point at a node by its segment tag, by
+  its group identifier (`SGn`) or by `SGn/TAG`, which cannot tell apart two nodes of the same tag at
+  the same level of a message; a uniqueness rule on `sequence` would let them.
 - **Closed lists.** `closed` is required, but the UNTDID files do not say which lists are
   exhaustive. The generator marks every list that has codes as closed and leaves the strictness to
   the validator (#45), which can turn the check down per list or per partner (#47).

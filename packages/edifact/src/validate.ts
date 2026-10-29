@@ -3,6 +3,7 @@ import { EnvelopeChecker, type IssueSink } from "./envelope.ts";
 import { ParseError, TokenizeError } from "./errors.ts";
 import {
   ISSUE_CATALOGUE,
+  type IssueCode,
   type IssueDraft,
   isIssueCode,
   makeIssue,
@@ -10,6 +11,12 @@ import {
   type ValidationIssue,
 } from "./issues.ts";
 import type { LineColumn } from "./line-index.ts";
+import {
+  applyOverrides,
+  type OverridesView,
+  type SeverityRule,
+  severityRules,
+} from "./overrides.ts";
 import { type ParseOptions, parseMessages } from "./parser.ts";
 import { findRegistry, type RegistryView } from "./registry.ts";
 import { StructureChecker } from "./structure.ts";
@@ -29,6 +36,15 @@ export interface ValidateOptions {
    * file and its envelopes are checked.
    */
   readonly registries?: readonly RegistryView[];
+  /**
+   * Partner overrides (contracts/overrides) for the flow being validated, applied in order, the
+   * last one winning. The rules about elements, codes and structure change the registry of their
+   * directory for this call (see {@link applyOverrides}); a document for a directory that none of
+   * the registries is of changes nothing. The severities are the call's, whatever directory a
+   * message is of: `off` drops the issue, which then is not counted, kept or summarised. Issues of a
+   * file that cannot be read are not affected.
+   */
+  readonly overrides?: readonly OverridesView[];
   /**
    * Which code lists are enforced: `closed` (default) the lists that hold every valid value,
    * `all` also the open lists, which are only what the directory knows, as warnings, `off` none.
@@ -75,17 +91,28 @@ class Collector implements IssueSink {
   readonly #max: number;
   readonly #kept: ValidationIssue[] = [];
   readonly #summaries: Summaries | null;
+  readonly #severities: ReadonlyMap<IssueCode, SeverityRule>;
   count = 0;
   errors = 0;
   warnings = 0;
 
-  constructor(max: number, summaries: Summaries | null = null) {
+  constructor(
+    max: number,
+    summaries: Summaries | null = null,
+    severities: ReadonlyMap<IssueCode, SeverityRule> = new Map(),
+  ) {
     this.#max = max;
     this.#summaries = summaries;
+    this.#severities = severities;
   }
 
   /** `summarised` is false for an issue that the summary has already counted (see `Summaries.pending`). */
-  add(draft: IssueDraft, locate: (offset: number) => LineColumn, summarised = true): void {
+  add(original: IssueDraft, locate: (offset: number) => LineColumn, summarised = true): void {
+    const rule = this.#severities.get(original.code);
+    if (rule === "off") {
+      return;
+    }
+    const draft = rule === undefined ? original : { ...original, severity: rule };
     this.count++;
     if ((draft.severity ?? ISSUE_CATALOGUE[draft.code].severity) === "error") {
       this.errors++;
@@ -233,7 +260,11 @@ export function validate(bytes: Uint8Array, options: ValidateOptions = {}): Vali
     throw new RangeError(`maxIssues must be a non-negative integer, not ${maxIssues}`);
   }
   const summaries = options.summary === true ? new Summaries() : null;
-  const collector = new Collector(maxIssues, summaries);
+  const overrides = options.overrides ?? [];
+  if (!Array.isArray(overrides)) {
+    throw new RangeError("overrides must be an array of documents, even for one document");
+  }
+  const collector = new Collector(maxIssues, summaries, severityRules(overrides));
   const envelope = new EnvelopeChecker(collector);
   const parseOptions: ParseOptions = {
     maxIssues,
@@ -242,7 +273,9 @@ export function validate(bytes: Uint8Array, options: ValidateOptions = {}): Vali
       : { onIssue: (code, position, offset) => summaries.pending(code, position, offset) }),
     ...(options.memoryBudget === undefined ? {} : { memoryBudget: options.memoryBudget }),
   };
-  const registries = options.registries ?? [];
+  const registries = (options.registries ?? []).map((registry) =>
+    overrides.reduce(applyOverrides, registry),
+  );
   const codeLists = options.codeLists ?? "closed";
   if (codeLists !== "closed" && codeLists !== "all" && codeLists !== "off") {
     throw new RangeError(`codeLists must be "closed", "all" or "off", not ${String(codeLists)}`);
