@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/imapanda/libredi/main/contracts/erp-formats/v1/csv.schema.json",
+  "title": "CSV format",
+  "description": "How a document is written to, and read from, one or several CSV files: the files, their record types and their columns, the separator, the quoting, the encoding and the decimal mark (version 1).",
+  "type": "object",
+  "properties": {
+    "formatVersion": { "description": "Version of this format.", "const": 1 },
+    "format": { "const": "csv" },
+    "name": { "$ref": "common.schema.json#/$defs/name" },
+    "description": { "type": "string" },
+    "encoding": { "$ref": "common.schema.json#/$defs/textEncoding" },
+    "bom": { "$ref": "common.schema.json#/$defs/bom" },
+    "lineEnding": { "$ref": "common.schema.json#/$defs/lineEnding", "default": "crlf" },
+    "separator": {
+      "description": "Character between two values. A tab is written \"\\t\".",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1,
+      "not": { "enum": ["\r", "\n"] },
+      "default": ","
+    },
+    "quote": {
+      "description": "Character around a value that holds the separator, the quote or a line break. A quote inside such a value is doubled.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1,
+      "not": { "enum": ["\r", "\n"] },
+      "default": "\""
+    },
+    "quoting": {
+      "description": "minimal: quote only the values that need it. all: quote every value. none: never quote; a value that would need quotes is an error, and a reader takes the quote as an ordinary character.",
+      "enum": ["minimal", "all", "none"],
+      "default": "minimal"
+    },
+    "decimalMark": { "$ref": "common.schema.json#/$defs/decimalMark" },
+    "files": {
+      "description": "The files of one document, at least one. Several files are matched by the document fields they share.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/file" }
+    }
+  },
+  "required": ["formatVersion", "format", "files"],
+  "additionalProperties": false,
+  "$defs": {
+    "file": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Name of the file, used to match the files given to the reader and in error messages.",
+          "$ref": "common.schema.json#/$defs/name"
+        },
+        "header": {
+          "description": "The file starts with a line of column names. Only for a file with one record type.",
+          "type": "boolean",
+          "default": false
+        },
+        "records": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/recordType" }
+        }
+      },
+      "required": ["name", "records"],
+      "additionalProperties": false
+    },
+    "recordType": {
+      "type": "object",
+      "$ref": "common.schema.json#/$defs/recordType",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/column" }
+        }
+      },
+      "required": ["columns"],
+      "unevaluatedProperties": false
+    },
+    "column": {
+      "type": "object",
+      "$ref": "common.schema.json#/$defs/column",
+      "unevaluatedProperties": false
+    }
+  }
+}
