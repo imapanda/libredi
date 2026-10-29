@@ -106,7 +106,7 @@ export function* jsonReport(
     errors: report.errorCount,
     warnings: report.warningCount,
   })},`;
-  yield `"registries":${J(head.directories)},`;
+  yield `"registries":${J(head.directories)},"overrides":${J(head.overrides)},`;
   yield `"issues":${J(report.issues)},"interchanges":[`;
   let first = true;
   let open = false;

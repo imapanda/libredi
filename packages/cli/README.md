@@ -48,6 +48,7 @@ shown message by message; nothing is written or sent.
 | --- | --- |
 | `--json` | One JSON document instead of text (see below) |
 | `--registry <path>` | A registry of [`contracts/registry`](../../contracts/registry/README.md) to check the messages against: a JSON file, or a folder of them such as the one `libredi registry build` writes (its `.json` files, links included, not hidden ones). Repeat for several. Without one, only the file and its envelopes are checked: there is no default registry, so that the result does not depend on the machine |
+| `--overrides <path>` | A document of [partner overrides](../../docs/partner-overrides.md) ([`contracts/overrides`](../../contracts/overrides/README.md)): the rules a partner changes, applied on top of the registry of its directory, which a `--registry` must give. Repeat for several, the last one winning. Each is checked against its schema and against the registry as the documents before it leave it; one that is not valid, or names what that registry does not have, is refused (exit status 3, up to three problems shown). Rules about a directory need its `--registry`; a document of severities alone does not. A file named twice is applied twice, where it was named |
 | `--no-tree` | Leave out the segments; the interchanges and messages are still listed |
 | `--max-issues <n>` | Most issues to list; all are counted. Default 1000 |
 | `--memory-budget <n>` | Most memory, in bytes, for the arrays of one message (4,096 to 2^31). Default 64 MiB. A message that needs more is reported as `MESSAGE_TOO_LARGE` and the check stops there |
@@ -66,7 +67,7 @@ a file named twice is read once.
 | 0 | The file has no error. Warnings do not count |
 | 1 | The file has errors, or holds no interchange (an empty file) |
 | 2 | The command line is wrong: no file, two files, an unknown option, a value that is not valid |
-| 3 | The file, standard input or a registry cannot be read, or a registry is not valid |
+| 3 | The file, standard input, a registry or a document of overrides cannot be read, or is not valid |
 | 4 | Something else went wrong: the output cannot be written (a full disk), or a bug |
 
 Messages for 2, 3 and 4 go to standard error, prefixed `libredi:`, with nothing sensible on standard
@@ -124,6 +125,7 @@ segment or message.
 | `complete` | False when the check stopped before the end of the file (a cut-off file, a bad UNA string, a message too large for the memory budget); the issue says why |
 | `counts` | `interchanges` (as many as `interchanges` below: one that could not be read counts), `messages`, `issues`, `errors`, `warnings`: all of them, including the issues beyond `--max-issues` |
 | `registries` | The directories checked against, such as `D.96A (UN)`; empty without `--registry` |
+| `overrides` | The documents of overrides applied, in order, as `{ file, name }` (`name` is null when the document has none); `[]` without `--overrides` |
 | `issues` | The first issues in file order, as `validate` gives them: `code`, `severity`, `layer`, `position` (`segment`, `tag`, `element`, `component`, `repetition`), `expected`, `found`, `message`, `hint`, `offset`, `line`, `column` |
 | `interchanges` | One object for each interchange, below |
 | `acknowledgements` | What the CONTRL messages of the file say, as [`readContrl`](../edifact/README.md#acknowledge-contrl) gives them; `[]` for a file with none |

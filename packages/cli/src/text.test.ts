@@ -29,9 +29,9 @@ describe("the text of an issue", () => {
       interchangeCount: 0,
       interchanges: [],
     };
-    const out = [...textReport({ file: "f.edi", bytes: 0, directories: [] }, report, [], [])].join(
-      "",
-    );
+    const out = [
+      ...textReport({ file: "f.edi", bytes: 0, directories: [], overrides: [] }, report, [], []),
+    ].join("");
     expect(out).toContain("\n  NAD has ?[31mQQQ? and?error FORGED at line 1\n");
     expect(out).toContain("Hint: Hint with ? bell");
     expect([...out].filter((char) => char < " " && char !== "\n")).toEqual([]);
