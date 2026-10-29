@@ -3,6 +3,8 @@ export { loadCsvFormat, readCsv, renderCsv } from "./csv.ts";
 export type { TextEncoding } from "./encoding.ts";
 export type { LayoutProblem, Position } from "./errors.ts";
 export { FormatError, LayoutError } from "./errors.ts";
+export type { FixedColumn, FixedWidthFormat } from "./fixed-width.ts";
+export { loadFixedWidthFormat, readFixedWidth, renderFixedWidth } from "./fixed-width.ts";
 export type { JsonFormat } from "./json.ts";
 export { loadJsonFormat, renderJson } from "./json.ts";
 export type { Column, RecordFile, RecordType } from "./layout.ts";
