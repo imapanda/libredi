@@ -1,0 +1,28 @@
+{
+  "name": "@libredi/mapping",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runs the mappings of contracts/mapping: a pure evaluator for the browser and the services, and a pool of worker threads that sandboxes it with hard time and memory limits",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./pool": "./src/pool.ts"
+  },
+  "scripts": {
+    "bench": "node bench/run.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "jsonata": "catalog:"
+  },
+  "devDependencies": {
+    "@libredi/contracts": "workspace:*",
+    "@types/node": "catalog:",
+    "fast-check": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "yaml": "catalog:"
+  }
+}
