@@ -1,16 +1,18 @@
 # @libredi/cli
 
-The `libredi` command line program. Today it has two commands:
+The `libredi` command line program. Today it has three commands:
 
 | Command | What it does |
 | --- | --- |
 | `libredi inspect <file>` | Shows the interchanges, messages and segments of an EDIFACT file and what is wrong with it, as text or as JSON ([#52](https://github.com/imapanda/libredi/issues/52)) |
+| `libredi test <mapping>` | Runs the fixtures of a mapping in the sandbox and shows how the output differs from what they expect ([#62](https://github.com/imapanda/libredi/issues/62)) |
 | `libredi registry build` | Builds the EDIFACT definition registry from the UN/ECE directories ([Registry generator](../../docs/registry-generator.md)) |
 
 ```bash
 pnpm --filter @libredi/cli libredi inspect orders.edi
 pnpm --filter @libredi/cli libredi inspect orders.edi --json --registry ~/.local/share/libredi/registry
 cat orders.edi | pnpm --filter @libredi/cli libredi inspect - --no-tree
+pnpm --filter @libredi/cli libredi test contracts/mapping/examples/order-to-csv.mapping.yaml
 ```
 
 `libredi` is also the `bin` of the package, which pnpm links inside the workspace. There is no
@@ -29,7 +31,8 @@ A package of its own, `packages/cli`, and not the registry generator or the EDIF
 - `@libredi/registry` has `runCli`, the code of `libredi registry build`. It stays there and is
   exported as `@libredi/registry/cli`; the program here hands it the arguments that follow
   `registry`. Its own `libredi` script still works.
-- This package depends on both, reads files, and is where the next commands (`validate` against a
+- `@libredi/mapping` runs mappings; `libredi test` gives it the mapping and its fixtures.
+- This package depends on them, reads files, and is where the next commands (`validate` against a
   partner's rules, `ack`, `translate`) will go, one file for each.
 
 `run(argv, context)` returns the exit status instead of exiting, and takes what it touches
@@ -169,6 +172,46 @@ output to `/dev/null`:
 | `inspect --json` | 0.68 s | 146 MB |
 | `inspect` (text, every segment) | 0.91 s | 187 MB |
 
+## `libredi test`
+
+```text
+libredi test <mapping> [--timeout <ms>]
+```
+
+Reads a [mapping](../../contracts/mapping/README.md) in YAML, checks it against
+`mapping.schema.json` and compiles its expressions, then runs each fixture in the worker pool of
+[`@libredi/mapping`](../mapping/README.md), the sandbox of the translator: a time limit for each
+fixture (`--timeout`, default 1,000 ms), a heap limit, and no `$eval`, `$now`, `$millis`,
+`$random` or `$shuffle`. The output of each fixture is compared with what it expects as JSON values:
+the order of the properties does not count, the order of array items does.
+
+```text
+small.mapping.yaml: Test mapping, version 2
+FAIL missing and unexpected
+  lines[1]: missing, expected {"lineNumber":2}
+  documentNumber: not expected, got "1"
+FAIL a bad number
+  EXPRESSION_FAILED in lines[1].lineNumber: Unable to cast value to a number: "x" (D3030)
+Result: 2 of 2 fixtures fail.
+```
+
+Each difference gives the path of the value, then what was expected and what came out (`changed`),
+or only one of them (`missing`, `not expected`); the first 20 are shown for each fixture. A fixture
+that fails gives the error code of the runner and the field. A last line, `Low confidence, to
+review before promotion: ...`, lists the fields of `low` confidence, which block promotion to
+production; they do not change the exit status.
+
+| Status | Meaning |
+| --- | --- |
+| 0 | Every fixture gives what it expects |
+| 1 | A fixture gives something else, fails, or goes over a limit |
+| 2 | The command line is wrong |
+| 3 | The file cannot be read, is not YAML, does not follow the schema, has an expression that does not parse or calls an unavailable function such as `$eval`: nothing is run |
+| 4 | Something else went wrong: the output cannot be written, or a bug |
+
+The canonical side of the fixtures is not checked against the canonical schemas here; the tests of
+`@libredi/contracts` do it for the examples.
+
 ## Tests
 
 `pnpm --filter @libredi/cli test` runs:
@@ -183,7 +226,10 @@ output to `/dev/null`:
   would act on a terminal (in the text, in an issue, in a file name, on standard error), a memory
   budget, and 3,000 messages written in blocks, waiting for a slow reader and giving up when it
   fails;
-- the program as a process: the five exit statuses, standard input, a closed pipe and a full disk.
+- the program as a process: the five exit statuses, standard input, a closed pipe and a full disk;
+- `test`: the examples of `contracts/mapping`, a wrong expected value, missing and unexpected
+  values, an expression that fails, a runaway expression stopped by `--timeout`, `$eval`, files that
+  are not YAML or not valid mappings, the usage errors, and the program as a process.
 
 The tests use only the fictitious registries of the corpus; no UN/EDIFACT directory is downloaded or
 committed ([ADR 7](../../docs/adr/0007-standards-licensing.md)).

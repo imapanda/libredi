@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../csv.schema.json
+formatVersion: 1
+format: csv
+name: ERP order lines
+description: >-
+  The file of order lines that a fictitious ERP imports: one row per order line, the order
+  values repeated on each row, French conventions. It writes the rows that the mapping
+  contracts/mapping/examples/order-to-csv.mapping.yaml gives, and reads them back.
+encoding: windows-1252
+lineEnding: crlf
+separator: ";"
+decimalMark: ","
+files:
+  - name: order-lines.csv
+    header: true
+    records:
+      - name: line
+        source: rows
+        columns:
+          - { name: ORDER_NO, field: order_number, groupBy: true, required: true }
+          - { name: ORDER_DATE, field: order_date }
+          - { name: BUYER_GLN, field: buyer_gln }
+          - { name: SHIP_TO_GLN, field: ship_to_gln }
+          - { name: LINE, field: line, required: true }
+          - { name: GTIN, field: gtin }
+          - { name: SUPPLIER_ITEM, field: supplier_item }
+          - { name: QUANTITY, field: quantity, type: decimal, required: true }
+          - { name: UNIT, field: unit }
+          - { name: UNIT_PRICE, field: unit_price, type: decimal, scale: 2 }

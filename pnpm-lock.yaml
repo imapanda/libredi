@@ -214,9 +214,21 @@ importers:
       '@libredi/edifact':
         specifier: workspace:*
         version: link:../edifact
+      '@libredi/mapping':
+        specifier: workspace:*
+        version: link:../mapping
       '@libredi/registry':
         specifier: workspace:*
         version: link:../registry
+      ajv:
+        specifier: 'catalog:'
+        version: 8.20.0
+      ajv-formats:
+        specifier: 'catalog:'
+        version: 3.0.1(ajv@8.20.0)
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.1
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -275,6 +287,53 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.12(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(yaml@2.9.1))
+
+  packages/erp-formats:
+    dependencies:
+      ajv:
+        specifier: 'catalog:'
+        version: 8.20.0
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.10.2
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(yaml@2.9.1))
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.1
+
+  packages/mapping:
+    dependencies:
+      jsonata:
+        specifier: 'catalog:'
+        version: 2.2.2
+    devDependencies:
+      '@libredi/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.10.2
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(yaml@2.9.1))
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.1
 
   packages/registry:
     dependencies:

@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=../json.schema.json
+formatVersion: 1
+format: json
+name: Orders as JSON Lines
+description: One canonical order per line, for an ERP that imports JSON Lines.
+layout: lines
+lineEnding: lf

@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/imapanda/libredi/main/contracts/erp-formats/v1/common.schema.json",
+  "title": "ERP file formats, shared definitions (version 1)",
+  "description": "Building blocks shared by the CSV, fixed-width, JSON and XML formats. Not a format by itself.",
+  "$defs": {
+    "name": {
+      "description": "A name for people and error messages: a file, a record type or a column.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "path": {
+      "description": "Where a value sits in the document: property names joined by dots, such as product.gtin. A path never goes through an array.",
+      "type": "string",
+      "pattern": "^[^.]+(\\.[^.]+)*$",
+      "not": { "pattern": "(^|\\.)(__proto__|constructor|prototype)(\\.|$)" },
+      "maxLength": 500
+    },
+    "textEncoding": {
+      "description": "Character encoding of the file. utf-8 is read with or without a byte order mark (see bom).",
+      "enum": ["utf-8", "windows-1252", "iso-8859-1"],
+      "default": "utf-8"
+    },
+    "bom": {
+      "description": "Write a UTF-8 byte order mark at the start of the file. Only with utf-8; a reader accepts a file with or without one.",
+      "type": "boolean",
+      "default": false
+    },
+    "lineEnding": {
+      "description": "End of every line written, the last one included. Readers accept CRLF and LF.",
+      "enum": ["crlf", "lf"]
+    },
+    "decimalMark": {
+      "description": "Character between the whole part and the decimals of a decimal number.",
+      "enum": [".", ","],
+      "default": "."
+    },
+    "column": {
+      "description": "One value of a record. Exactly one of field, documentField and value says where it comes from.",
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "field": {
+          "description": "Path of the value in the item of the record (or in the document, for a record without source).",
+          "$ref": "#/$defs/path"
+        },
+        "documentField": {
+          "description": "Path of the value in the document, repeated on every record. When it changes from one record to the next, a reader starts a new document.",
+          "$ref": "#/$defs/path"
+        },
+        "value": {
+          "description": "A constant, such as the code of the record type. Written as is; a reader checks it and uses it to tell record types apart.",
+          "type": "string"
+        },
+        "type": {
+          "description": "string: copied as is. decimal: a decimal string of the document, written with the decimal mark and scale of the format. integer: a whole number, read as a JSON number.",
+          "enum": ["string", "decimal", "integer"],
+          "default": "string"
+        },
+        "groupBy": {
+          "description": "For a field of a record with a source: records that follow each other with the same value belong to one document, and a reader starts a new document when it changes. A documentField always groups this way.",
+          "type": "boolean",
+          "default": false
+        },
+        "required": {
+          "description": "The value must be present and not empty, when writing and when reading.",
+          "type": "boolean",
+          "default": false
+        },
+        "scale": {
+          "description": "Decimal numbers only: number of decimals written. Missing zeros are added; a value with more non-zero decimals is an error, never rounded.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18
+        },
+        "decimalMark": { "$ref": "#/$defs/decimalMark" }
+      },
+      "required": ["name"],
+      "oneOf": [
+        { "required": ["field"] },
+        { "required": ["documentField"] },
+        { "required": ["value"] }
+      ]
+    },
+    "recordType": {
+      "description": "One kind of line of a file. A record without source is written once per document from the document itself; a record with a source is written once per item of that array.",
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "source": {
+          "description": "Path of the array whose items give one record each, such as lines.",
+          "$ref": "#/$defs/path"
+        }
+      },
+      "required": ["name"]
+    }
+  }
+}

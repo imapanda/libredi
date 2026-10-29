@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/imapanda/libredi/main/contracts/erp-formats/v1/json.schema.json",
+  "title": "JSON format",
+  "description": "How documents are written as a JSON file, in UTF-8 (version 1). Values are written as they are: decimal strings stay strings.",
+  "type": "object",
+  "properties": {
+    "formatVersion": { "description": "Version of this format.", "const": 1 },
+    "format": { "const": "json" },
+    "name": { "$ref": "common.schema.json#/$defs/name" },
+    "description": { "type": "string" },
+    "layout": {
+      "description": "document: one document per file. array: the documents of a file in one array. lines: one document per line, without indentation (JSON Lines).",
+      "enum": ["document", "array", "lines"],
+      "default": "document"
+    },
+    "indent": {
+      "description": "Spaces per level; 0 writes everything on one line. Ignored by the lines layout.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8,
+      "default": 2
+    },
+    "bom": { "$ref": "common.schema.json#/$defs/bom" },
+    "lineEnding": { "$ref": "common.schema.json#/$defs/lineEnding", "default": "lf" }
+  },
+  "required": ["formatVersion", "format"],
+  "additionalProperties": false
+}

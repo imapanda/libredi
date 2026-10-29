@@ -4,8 +4,9 @@ A mapping is a YAML file that turns one message into one [canonical
 document](../canonical/README.md), or the other way round. It is meant to be read by a person,
 written by an AI assistant, tested without a partner, and run in a sandbox
 ([ADR 6](../../docs/adr/0006-declarative-mappings-with-jsonata.md)). The format is described by
-[`mapping.schema.json`](mapping.schema.json) (JSON Schema 2020-12). The runner that executes it
-is a separate piece of work: this page defines what a mapping says, and how it must be read.
+[`mapping.schema.json`](mapping.schema.json) (JSON Schema 2020-12). This page defines what a
+mapping says, and how it must be read; the runner, [`@libredi/mapping`](../../packages/mapping/README.md),
+executes it, and `libredi test <mapping>` runs its fixtures.
 
 | Key | Content |
 | --- | --- |
@@ -86,8 +87,8 @@ sandboxes and limits time, depth and memory.
   write `rows.note[]` to always get an array. An array of objects is a `forEach` group.
 - The properties of an object come out in the order written. Fixtures compare JSON values, in
   which only the order of arrays counts.
-- The result depends on the input alone: `$now()`, `$millis()`, `$random()` and `$eval()` are
-  not available. Pass a date in through the input if a mapping needs it.
+- The result depends on the input alone: `$now()`, `$millis()`, `$random()`, `$shuffle()` and
+  `$eval()` are not available. Pass a date in through the input if a mapping needs it.
 - To refuse an unknown code instead of dropping the field, write
   `$lookup($lookups.units, unit) ?? $error("unknown unit")`. A thrown error, from `$error` or
   from a function such as `$number("")`, fails the whole document; nothing partial is kept.
