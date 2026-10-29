@@ -13,7 +13,7 @@ export interface MappingFile {
 }
 
 /** Functions whose result is not a function of the input, or that run text as code. */
-const UNAVAILABLE = ["eval", "now", "millis", "random"];
+const UNAVAILABLE = ["eval", "now", "millis", "random", "shuffle"];
 
 /**
  * Executable statement of the evaluation rules in contracts/mapping/README.md, so that the
