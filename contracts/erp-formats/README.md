@@ -8,6 +8,7 @@ that runs them is [`packages/erp-formats`](../../packages/erp-formats/README.md)
 | Format | Schema | Writes | Reads |
 | --- | --- | --- | --- |
 | CSV | [`csv.schema.json`](v1/csv.schema.json) | yes | yes |
+| Fixed width | [`fixed-width.schema.json`](v1/fixed-width.schema.json) | yes | yes |
 | JSON | [`json.schema.json`](v1/json.schema.json) | yes | not yet |
 | XML | [`xml.schema.json`](v1/xml.schema.json) | yes | not yet |
 
@@ -21,9 +22,9 @@ conditions belong in the mapping.
 
 ## Common rules
 
-- **`formatVersion: 1`** and **`format`** (`csv`, `json`, `xml`) start every configuration. The
-  schemas of version 1 live in `v1/`; a change that breaks a configuration needs a version 2,
-  as for the [canonical documents](../canonical/README.md#versioning).
+- **`formatVersion: 1`** and **`format`** (`csv`, `fixed-width`, `json`, `xml`) start every
+  configuration. The schemas of version 1 live in `v1/`; a change that breaks a configuration
+  needs a version 2, as for the [canonical documents](../canonical/README.md#versioning).
 - **Closed objects.** An unknown property is an error, so a misspelled option fails at once.
 - **Encoding**: `utf-8` (the default), `windows-1252` or `iso-8859-1`. `bom: true` writes a
   UTF-8 byte order mark; a reader accepts UTF-8 with or without one, and refuses one in a file
@@ -133,6 +134,50 @@ as `H` and `L` records, UTF-8 with a byte order mark) and
 [`order-two-files.csv.yaml`](v1/examples/order-two-files.csv.yaml) (a header file and a lines
 file).
 
+## Fixed width
+
+```yaml
+formatVersion: 1
+format: fixed-width
+encoding: windows-1252
+lineEnding: crlf
+files:
+  - name: ORDERS.TXT
+    records:
+      - name: line
+        source: lines
+        columns:
+          - { name: RECORD, value: "02", width: 2 }
+          - { name: LINE, field: lineNumber, type: integer, width: 4, pad: "0" }
+          - { name: DESCRIPTION, field: product.description, width: 30, overflow: truncate }
+          - { name: PRICE, field: unitPrice.amount, type: decimal, scale: 2, impliedDecimals: true, width: 9, pad: "0" }
+          - { name: FILLER, value: "", width: 5 }
+```
+
+Files, record types and columns work as for CSV (see above), without a separator, quotes or a
+header line: a column has a `width` instead, and a line is exactly as long as the widths of its
+record type added up. Widths count characters, not bytes; in Windows-1252 and ISO-8859-1 they
+are the same.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `width` | | Number of characters of the column. |
+| `align` | `right` for numbers, `left` otherwise | Side of the value; the padding fills the other side. |
+| `pad` | a space | Character that fills the column. A pad other than a space needs `align: right`. An empty value is always written as spaces, so that it is never read as zero; a minus sign goes before zeros of padding (`-0012.50`). |
+| `impliedDecimals` | `false` | Decimals with a `scale`: the digits without a decimal mark, the last `scale` of them being the decimals (`2.50` with scale 2 is `250`). |
+| `overflow` | `error` | A value longer than the width is an error, or, for a string field, is cut to the width (`truncate`). |
+
+A constant with an empty `value` is a filler: spaces, checked when reading. Record types in one
+file are told apart by constants at the same place, such as `01` and `02` in the first two
+characters.
+
+The padding is not part of the value, so a string that starts or ends with the padding
+character, on the side the padding fills, would lose it when read: writing it is an error.
+When reading, every line must have the exact length of its record type, and each value comes
+out of its padding before it is checked like a CSV value.
+
+Example: [`order.fixed-width.yaml`](v1/examples/order.fixed-width.yaml).
+
 ## JSON
 
 | Key | Default | Meaning |
@@ -183,4 +228,4 @@ Example: [`orders.xml.yaml`](v1/examples/orders.xml.yaml).
 
 The tests of [`packages/erp-formats`](../../packages/erp-formats) load every example against its
 schema, check that broken variants fail, write the canonical examples with every format, and
-read the CSV files back to the same documents, including with random documents.
+read the CSV and fixed-width files back to the same documents, including with random documents.

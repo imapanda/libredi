@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { loadCsvFormat } from "./csv.ts";
 import { LayoutError } from "./errors.ts";
+import { loadFixedWidthFormat } from "./fixed-width.ts";
 import { loadJsonFormat } from "./json.ts";
 import { formatExample, formatExamples } from "./test-support.ts";
 import { loadXmlFormat } from "./xml.ts";
 
 const LOADERS: Record<string, (config: unknown) => unknown> = {
   csv: loadCsvFormat,
+  "fixed-width": loadFixedWidthFormat,
   json: loadJsonFormat,
   xml: loadXmlFormat,
 };

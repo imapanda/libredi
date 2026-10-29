@@ -1,6 +1,9 @@
 import Ajv2020 from "ajv/dist/2020.js";
 import common from "../../../contracts/erp-formats/v1/common.schema.json" with { type: "json" };
 import csv from "../../../contracts/erp-formats/v1/csv.schema.json" with { type: "json" };
+import fixedWidth from "../../../contracts/erp-formats/v1/fixed-width.schema.json" with {
+  type: "json",
+};
 import json from "../../../contracts/erp-formats/v1/json.schema.json" with { type: "json" };
 import xml from "../../../contracts/erp-formats/v1/xml.schema.json" with { type: "json" };
 import { LayoutError, type LayoutProblem } from "./errors.ts";
@@ -34,7 +37,7 @@ export interface RecordFile<C extends Column = Column> {
 export type ColumnConfig = Omit<Column, "type" | "groupBy" | "required" | "decimalMark"> &
   Partial<Pick<Column, "type" | "groupBy" | "required" | "decimalMark">>;
 
-const SCHEMAS = { csv, json, xml } as const;
+const SCHEMAS = { csv, "fixed-width": fixedWidth, json, xml } as const;
 type SchemaName = keyof typeof SCHEMAS;
 
 let ajv: Ajv2020 | undefined;
