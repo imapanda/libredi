@@ -1,0 +1,25 @@
+{
+  "name": "@libredi/erp-formats",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The files ERPs import and export: CSV read and written from a configurable layout, JSON and XML written, all from canonical documents or what a mapping gives",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ajv": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "fast-check": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "yaml": "catalog:"
+  }
+}

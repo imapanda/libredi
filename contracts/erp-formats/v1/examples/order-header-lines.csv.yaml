@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../csv.schema.json
+formatVersion: 1
+format: csv
+name: ERP orders, header and lines in one file
+description: >-
+  A canonical order written directly, without a mapping: one H row per order, then one L row
+  per line. The first value tells the two record types apart. UTF-8 with a byte order mark,
+  which some spreadsheet programs need to show accents.
+encoding: utf-8
+bom: true
+lineEnding: crlf
+separator: ";"
+decimalMark: ","
+files:
+  - name: orders.csv
+    records:
+      - name: header
+        columns:
+          - { name: RECORD, value: H }
+          - { name: DOCUMENT_TYPE, field: documentType, required: true }
+          - { name: SCHEMA_VERSION, field: schemaVersion, type: integer, required: true }
+          - { name: ORDER_NO, field: documentNumber, required: true }
+          - { name: ORDER_DATE, field: issueDate, required: true }
+          - { name: DELIVERY_DATE, field: requestedDeliveryDate }
+          - { name: CURRENCY, field: currency }
+          - { name: BUYER_GLN, field: parties.buyer.gln }
+          - { name: BUYER_NAME, field: parties.buyer.name }
+          - { name: SUPPLIER_GLN, field: parties.supplier.gln }
+          - { name: SHIP_TO_GLN, field: parties.shipTo.gln }
+      - name: line
+        source: lines
+        columns:
+          - { name: RECORD, value: L }
+          - { name: LINE, field: lineNumber, type: integer, required: true }
+          - { name: GTIN, field: product.gtin }
+          - { name: SUPPLIER_ITEM, field: product.supplierItemId }
+          - { name: DESCRIPTION, field: product.description }
+          - { name: QUANTITY, field: quantity.value, type: decimal, required: true }
+          - { name: UNIT, field: quantity.unit }
+          - { name: UNIT_PRICE, field: unitPrice.amount, type: decimal, scale: 2 }

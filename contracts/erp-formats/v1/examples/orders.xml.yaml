@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../xml.schema.json
+formatVersion: 1
+format: xml
+name: Orders as XML
+description: >-
+  Canonical orders in one XML file, with element names in the style of a fictitious ERP. The
+  line number is an attribute of each line.
+root: Order
+wrapper: Orders
+namespace: "urn:example:erp:orders"
+encoding: iso-8859-1
+indent: 2
+lineEnding: crlf
+names:
+  documentType: Type
+  schemaVersion: SchemaVersion
+  documentNumber: Number
+  issueDate: Date
+  requestedDeliveryDate: DeliveryDate
+  currency: Currency
+  parties: Parties
+  buyer: Buyer
+  supplier: Supplier
+  shipTo: ShipTo
+  gln: Gln
+  name: Name
+  address: Address
+  street: Street
+  city: City
+  postalCode: PostalCode
+  country: Country
+  references: References
+  type: Type
+  value: Value
+  lines: Lines
+  lineNumber: number
+  product: Product
+  gtin: Gtin
+  supplierItemId: SupplierItem
+  description: Description
+  quantity: Quantity
+  unit: Unit
+  unitPrice: UnitPrice
+  amount: Amount
+items:
+  references: Reference
+  lines: Line
+attributes: [lineNumber]

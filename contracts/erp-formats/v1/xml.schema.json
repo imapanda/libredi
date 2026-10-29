@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/imapanda/libredi/main/contracts/erp-formats/v1/xml.schema.json",
+  "title": "XML format",
+  "description": "How documents are written as an XML file (version 1). An object becomes an element with one child per property, in order; a string, a number or a boolean becomes the text of an element, or an attribute.",
+  "type": "object",
+  "properties": {
+    "formatVersion": { "description": "Version of this format.", "const": 1 },
+    "format": { "const": "xml" },
+    "name": { "$ref": "common.schema.json#/$defs/name" },
+    "description": { "type": "string" },
+    "root": {
+      "description": "Element of each document.",
+      "$ref": "#/$defs/elementName"
+    },
+    "wrapper": {
+      "description": "Element around the documents, so that one file holds several. Without it, a file holds exactly one document.",
+      "$ref": "#/$defs/elementName"
+    },
+    "namespace": {
+      "description": "Default namespace, declared on the outermost element.",
+      "type": "string",
+      "minLength": 1
+    },
+    "encoding": { "$ref": "common.schema.json#/$defs/textEncoding" },
+    "bom": { "$ref": "common.schema.json#/$defs/bom" },
+    "declaration": {
+      "description": "Start with <?xml version=\"1.0\" encoding=\"...\"?>.",
+      "type": "boolean",
+      "default": true
+    },
+    "indent": {
+      "description": "Spaces per level; 0 writes everything on one line.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8,
+      "default": 2
+    },
+    "lineEnding": { "$ref": "common.schema.json#/$defs/lineEnding", "default": "lf" },
+    "names": {
+      "description": "Element or attribute name of a property, when it is not the property name itself.",
+      "type": "object",
+      "propertyNames": { "not": { "enum": ["__proto__", "constructor", "prototype"] } },
+      "additionalProperties": { "$ref": "#/$defs/elementName" }
+    },
+    "items": {
+      "description": "For an array property: the element of each item. The array is then written as one element named after the property, holding the items. Without an entry, each item is an element named after the property.",
+      "type": "object",
+      "propertyNames": { "not": { "enum": ["__proto__", "constructor", "prototype"] } },
+      "additionalProperties": { "$ref": "#/$defs/elementName" }
+    },
+    "attributes": {
+      "description": "Properties written as attributes of their parent element instead of child elements. Their values must be strings, numbers or booleans.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    }
+  },
+  "required": ["formatVersion", "format", "root"],
+  "additionalProperties": false,
+  "$defs": {
+    "elementName": {
+      "description": "An XML name, limited to ASCII letters, digits, '_', '-' and '.', starting with a letter or '_'.",
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9._-]*$",
+      "maxLength": 200
+    }
+  }
+}
