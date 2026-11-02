@@ -8,7 +8,7 @@
 # and read https://github.com/pgmq/pgmq/blob/main/UPDATING.md. The unversioned SQL
 # install only supports a fresh database, so an existing one needs the upgrade scripts.
 
-FROM postgres:18.6-alpine@sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
+FROM postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
 LABEL org.opencontainers.image.title="libredi-postgres" \
       org.opencontainers.image.description="PostgreSQL with the pgmq job queue, for Libredi" \
       org.opencontainers.image.source="https://github.com/imapanda/libredi" \
